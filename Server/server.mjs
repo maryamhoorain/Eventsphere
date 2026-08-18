@@ -4,6 +4,7 @@ import dns from "node:dns";
 import connectDB from "./src/config/db.mjs";
 import authRoutes from "./src/routes/authRoutes.mjs";
 import exhibitorRoutes from "./src/routes/exhibitorRoutes.mjs";
+import eventRoutes from "./src/routes/eventRoutes.mjs";
 
 
 dotenv.config();
@@ -16,9 +17,9 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(express.json());
 
-
 app.use("/api/auth", authRoutes);
 app.use("/api/exhibitors", exhibitorRoutes);
+app.use("/api/events", eventRoutes);
 
 app.get("/", (req, res) => {
     res.json({
