@@ -11,6 +11,7 @@ import {
 
 import authMiddleware from "../middleware/authMiddleware.mjs";
 import authorizeRoles from "../middleware/roleMiddleware.mjs";
+import upload from "../middleware/uploadMiddleware.mjs";
 
 const router = express.Router();
 
@@ -31,6 +32,7 @@ router.post(
     "/",
     authMiddleware,
     authorizeRoles("admin"),
+    upload.single("bannerImage"),
     createEvent
 );
 router.patch(

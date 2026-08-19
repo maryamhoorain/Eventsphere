@@ -5,7 +5,7 @@ import connectDB from "./src/config/db.mjs";
 import authRoutes from "./src/routes/authRoutes.mjs";
 import exhibitorRoutes from "./src/routes/exhibitorRoutes.mjs";
 import eventRoutes from "./src/routes/eventRoutes.mjs";
-
+import registrationRoutes from "./src/routes/registrationRoutes.mjs";
 
 dotenv.config();
 
@@ -20,6 +20,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/exhibitors", exhibitorRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/api/registrations", registrationRoutes);
 
 app.get("/", (req, res) => {
     res.json({
