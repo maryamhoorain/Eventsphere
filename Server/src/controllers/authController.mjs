@@ -1,6 +1,7 @@
 import User from "../models/User.mjs";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const registerUser = async (req, res) => {
     try {
@@ -139,10 +140,137 @@ const getCurrentUser = async (req, res) => {
         });
     }
 };
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
 
+        if (!email) {
+            return res.status(400).json({
+                message: "Email is required"
+            });
+        }
+
+        const user = await User.findOne({
+            email: email.toLowerCase()
+        });
+
+        // Don't reveal whether an email exists
+        if (!user) {
+            return res.status(200).json({
+                message:
+                    "If an account with that email exists, a password reset link will be sent."
+            });
+        }
+
+        // Generate random reset token
+        const resetToken = crypto.randomBytes(32).toString("hex");
+
+        // Hash token before storing it
+        const hashedToken = crypto
+            .createHash("sha256")
+            .update(resetToken)
+            .digest("hex");
+
+        user.resetPasswordToken = hashedToken;
+
+        // Token expires in 15 minutes
+        user.resetPasswordExpires =
+            Date.now() + 15 * 60 * 1000;
+
+        await user.save();
+
+        // For now, we'll return the token for Thunder Client testing.
+        // Later we'll send it through email.
+        res.status(200).json({
+            message:
+                "Password reset token generated successfully",
+            resetToken
+        });
+
+    } catch (error) {
+        console.error(
+            "Forgot password error:",
+            error.message
+        );
+
+        res.status(500).json({
+            message: "Server error"
+        });
+    }
+};
+const resetPassword = async (req, res) => {
+    try {
+        const { token } = req.params;
+        const { password } = req.body;
+
+        if (!password) {
+            return res.status(400).json({
+                message: "New password is required"
+            });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({
+                message:
+                    "Password must be at least 6 characters long"
+            });
+        }
+
+        // Hash the token received from the user
+        const hashedToken = crypto
+            .createHash("sha256")
+            .update(token)
+            .digest("hex");
+
+        // Find user with valid token
+        const user = await User.findOne({
+            resetPasswordToken: hashedToken,
+            resetPasswordExpires: {
+                $gt: Date.now()
+            }
+        });
+
+        if (!user) {
+            return res.status(400).json({
+                message:
+                    "Password reset token is invalid or expired"
+            });
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(
+            password,
+            10
+        );
+
+        user.password = hashedPassword;
+
+        // Clear reset token
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+
+        await user.save();
+
+        res.status(200).json({
+            message: "Password reset successfully"
+        });
+
+    } catch (error) {
+        console.error(
+            "Reset password error:",
+            error.message
+        );
+
+        res.status(500).json({
+            message: "Server error"
+        });
+    }
+};
 
 export {
     registerUser,
     loginUser,
-    getCurrentUser
+    getCurrentUser,
+    forgotPassword,
+    resetPassword
 };
