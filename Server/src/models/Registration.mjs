@@ -34,6 +34,11 @@ const registrationSchema = new mongoose.Schema(
         timestamps: true
     }
 );
+// Prevent duplicate registration for the same event
+registrationSchema.index(
+    { attendee: 1, event: 1 },
+    { unique: true }
+);
 
 const Registration = mongoose.model(
     "Registration",
