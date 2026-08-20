@@ -84,25 +84,185 @@ const createEvent = async (req, res) => {
 };
 
 const getAllEvents = async (req, res) => {
-  try {
-    const events = await Event.find({
-      status: "published",
-      isPublished: true,
-    })
-      .populate("organizer", "name email")
-      .sort({ startDate: 1 });
+    try {
+        const {
+            search,
+            category,
+            city,
+            upcoming,
+            sort = "date",
+            page = 1,
+            limit = 10
+        } = req.query;
 
-    res.status(200).json({
-      count: events.length,
-      events,
-    });
-  } catch (error) {
-    console.error("Get events error:", error.message);
+        const query = {
+            status: "published",
+            isPublished: true
+        };
 
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
+        // ==============================
+        // SEARCH
+        // ==============================
+
+        if (search) {
+            query.$or = [
+                {
+                    title: {
+                        $regex: search,
+                        $options: "i"
+                    }
+                },
+                {
+                    description: {
+                        $regex: search,
+                        $options: "i"
+                    }
+                },
+                {
+                    category: {
+                        $regex: search,
+                        $options: "i"
+                    }
+                },
+                {
+                    tags: {
+                        $regex: search,
+                        $options: "i"
+                    }
+                }
+            ];
+        }
+
+        // ==============================
+        // CATEGORY
+        // ==============================
+
+        if (category) {
+            query.category = {
+                $regex: `^${category}$`,
+                $options: "i"
+            };
+        }
+
+        // ==============================
+        // CITY
+        // ==============================
+
+        if (city) {
+            query["location.city"] = {
+                $regex: `^${city}$`,
+                $options: "i"
+            };
+        }
+
+        // ==============================
+        // UPCOMING EVENTS
+        // ==============================
+
+        if (upcoming === "true") {
+            query.startDate = {
+                $gte: new Date()
+            };
+        }
+
+        // ==============================
+        // PAGINATION
+        // ==============================
+
+        const pageNumber = Math.max(
+            parseInt(page) || 1,
+            1
+        );
+
+        const limitNumber = Math.min(
+            Math.max(parseInt(limit) || 10, 1),
+            50
+        );
+
+        const skip =
+            (pageNumber - 1) * limitNumber;
+
+        // ==============================
+        // SORTING
+        // ==============================
+
+        let sortOption = {};
+
+        switch (sort) {
+
+            case "latest":
+                sortOption = {
+                    createdAt: -1
+                };
+                break;
+
+            case "oldest":
+                sortOption = {
+                    createdAt: 1
+                };
+                break;
+
+            case "date":
+            default:
+                sortOption = {
+                    startDate: 1
+                };
+                break;
+        }
+
+        // ==============================
+        // FETCH EVENTS
+        // ==============================
+
+        const [events, totalEvents] =
+            await Promise.all([
+                Event.find(query)
+                    .populate(
+                        "organizer",
+                        "name email"
+                    )
+                    .sort(sortOption)
+                    .skip(skip)
+                    .limit(limitNumber),
+
+                Event.countDocuments(query)
+            ]);
+
+        const totalPages =
+            Math.ceil(
+                totalEvents / limitNumber
+            );
+
+        res.status(200).json({
+
+            count: events.length,
+
+            totalEvents,
+
+            pagination: {
+                currentPage: pageNumber,
+                totalPages,
+                limit: limitNumber,
+                hasNextPage:
+                    pageNumber < totalPages,
+                hasPreviousPage:
+                    pageNumber > 1
+            },
+
+            events
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Get events error:",
+            error.message
+        );
+
+        res.status(500).json({
+            message: "Server error"
+        });
+    }
 };
 const getEventById = async (req, res) => {
   try {
