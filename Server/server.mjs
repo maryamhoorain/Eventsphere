@@ -7,6 +7,7 @@ import exhibitorRoutes from "./src/routes/exhibitorRoutes.mjs";
 import eventRoutes from "./src/routes/eventRoutes.mjs";
 import registrationRoutes from "./src/routes/registrationRoutes.mjs";
 import exhibitorParticipationRoutes from "./src/routes/exhibitorParticipationRoutes.mjs";
+import dashboardRoutes from "./src/routes/dashboardRoutes.mjs";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use("/api/exhibitors", exhibitorRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/registrations", registrationRoutes);
 app.use("/api/exhibitor-participation", exhibitorParticipationRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 app.get("/", (req, res) => {
   res.json({
