@@ -4,7 +4,10 @@ import {
     registerForEvent,
     getMyRegistrations,
     getRegistrationById,
-    cancelRegistration
+    cancelRegistration,
+    getEventRegistrations,
+    verifyTicket,
+    checkInAttendee
 } from "../controllers/registrationController.mjs";
 
 import authMiddleware from "../middleware/authMiddleware.mjs";
@@ -12,15 +15,41 @@ import authorizeRoles from "../middleware/roleMiddleware.mjs";
 
 const router = express.Router();
 
-// Register for an event
-router.post(
-    "/:eventId",
+
+// ==========================================
+// ADMIN / ORGANIZER
+// ==========================================
+
+router.get(
+    "/event/:eventId",
     authMiddleware,
-    authorizeRoles("attendee"),
-    registerForEvent
+    authorizeRoles("admin"),
+    getEventRegistrations
 );
 
-// Get all registrations of logged-in attendee
+console.log("REGISTERING: POST /verify-ticket -> ADMIN");
+
+router.post(
+    "/verify-ticket",
+    authMiddleware,
+    authorizeRoles("admin"),
+    verifyTicket
+);
+
+console.log("REGISTERING: POST /check-in -> ADMIN");
+
+router.post(
+    "/check-in",
+    authMiddleware,
+    authorizeRoles("admin"),
+    checkInAttendee
+);
+
+
+// ==========================================
+// ATTENDEE
+// ==========================================
+
 router.get(
     "/my",
     authMiddleware,
@@ -28,7 +57,15 @@ router.get(
     getMyRegistrations
 );
 
-// Get one registration
+console.log("REGISTERING: POST /:eventId -> ATTENDEE");
+
+router.post(
+    "/:eventId",
+    authMiddleware,
+    authorizeRoles("attendee"),
+    registerForEvent
+);
+
 router.get(
     "/:id",
     authMiddleware,
@@ -36,7 +73,6 @@ router.get(
     getRegistrationById
 );
 
-// Cancel registration
 router.patch(
     "/:id/cancel",
     authMiddleware,

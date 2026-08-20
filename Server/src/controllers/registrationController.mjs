@@ -234,10 +234,182 @@ const cancelRegistration = async (req, res) => {
         });
     }
 };
+const getEventRegistrations = async (req, res) => {
+    try {
+        const { eventId } = req.params;
+
+        const event = await Event.findById(eventId);
+
+        if (!event) {
+            return res.status(404).json({
+                message: "Event not found"
+            });
+        }
+
+        const registrations = await Registration.find({
+            event: eventId
+        })
+            .populate(
+                "attendee",
+                "name email phone"
+            )
+            .populate(
+                "event",
+                "title startDate endDate"
+            )
+            .sort({ registrationDate: -1 });
+
+        res.status(200).json({
+            event: {
+                id: event._id,
+                title: event.title
+            },
+            count: registrations.length,
+            registrations
+        });
+
+    } catch (error) {
+        console.error(
+            "Get event registrations error:",
+            error.message
+        );
+
+        res.status(500).json({
+            message: "Server error"
+        });
+    }
+};
+const verifyTicket = async (req, res) => {
+    try {
+        const { ticketCode } = req.body;
+
+        if (!ticketCode) {
+            return res.status(400).json({
+                message: "Ticket code is required"
+            });
+        }
+
+        const registration =
+            await Registration.findOne({
+                ticketCode
+            })
+                .populate(
+                    "attendee",
+                    "name email phone"
+                )
+                .populate(
+                    "event",
+                    "title startDate endDate location"
+                );
+
+        if (!registration) {
+            return res.status(404).json({
+                message: "Invalid ticket"
+            });
+        }
+
+        if (registration.status === "cancelled") {
+            return res.status(400).json({
+                message: "This registration has been cancelled"
+            });
+        }
+
+        if (registration.status === "attended") {
+            return res.status(400).json({
+                message: "This ticket has already been used",
+                registration
+            });
+        }
+
+        res.status(200).json({
+            message: "Ticket is valid",
+            registration
+        });
+
+    } catch (error) {
+        console.error(
+            "Verify ticket error:",
+            error.message
+        );
+
+        res.status(500).json({
+            message: "Server error"
+        });
+    }
+};
+
+const checkInAttendee = async (req, res) => {
+    try {
+        const { ticketCode } = req.body;
+
+        if (!ticketCode) {
+            return res.status(400).json({
+                message: "Ticket code is required"
+            });
+        }
+
+        const registration =
+            await Registration.findOne({
+                ticketCode
+            })
+                .populate(
+                    "attendee",
+                    "name email phone"
+                )
+                .populate(
+                    "event",
+                    "title startDate endDate"
+                );
+
+        if (!registration) {
+            return res.status(404).json({
+                message: "Invalid ticket"
+            });
+        }
+
+        if (registration.status === "cancelled") {
+            return res.status(400).json({
+                message:
+                    "Cancelled registration cannot be checked in"
+            });
+        }
+
+        if (registration.status === "attended") {
+            return res.status(400).json({
+                message:
+                    "Attendee has already been checked in"
+            });
+        }
+
+        registration.status = "attended";
+        registration.checkedInAt = new Date();
+
+        await registration.save();
+
+        res.status(200).json({
+            message:
+                "Attendee checked in successfully",
+            registration
+        });
+
+    } catch (error) {
+        console.error(
+            "Check-in error:",
+            error.message
+        );
+
+        res.status(500).json({
+            message: "Server error"
+        });
+    }
+};
 
 export {
     registerForEvent,
     getMyRegistrations,
     getRegistrationById,
-    cancelRegistration
+    cancelRegistration,
+    getEventRegistrations,
+    verifyTicket,
+    checkInAttendee
 };

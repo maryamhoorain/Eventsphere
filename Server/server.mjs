@@ -6,6 +6,7 @@ import authRoutes from "./src/routes/authRoutes.mjs";
 import exhibitorRoutes from "./src/routes/exhibitorRoutes.mjs";
 import eventRoutes from "./src/routes/eventRoutes.mjs";
 import registrationRoutes from "./src/routes/registrationRoutes.mjs";
+import exhibitorParticipationRoutes from "./src/routes/exhibitorParticipationRoutes.mjs";
 
 dotenv.config();
 
@@ -21,25 +22,26 @@ app.use("/api/auth", authRoutes);
 app.use("/api/exhibitors", exhibitorRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/registrations", registrationRoutes);
+app.use("/api/exhibitor-participation", exhibitorParticipationRoutes);
 
 app.get("/", (req, res) => {
-    res.json({
-        message: "EventSphere API is running!"
-    });
+  res.json({
+    message: "EventSphere API is running!",
+  });
 });
 
 // Start server after MongoDB connection
 const startServer = async () => {
-    try {
-        await connectDB();
+  try {
+    await connectDB();
 
-        app.listen(PORT, () => {
-            console.log(`Server running on http://localhost:${PORT}`);
-        });
-    } catch (error) {
-        console.error("Failed to start server:", error.message);
-        process.exit(1);
-    }
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server:", error.message);
+    process.exit(1);
+  }
 };
 
 startServer();
