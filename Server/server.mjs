@@ -11,6 +11,7 @@ import dashboardRoutes from "./src/routes/dashboardRoutes.mjs";
 import favoriteRoutes from "./src/routes/favoriteRoutes.mjs";
 import notificationRoutes from "./src/routes/notificationRoutes.mjs";
 import boothRoutes from "./src/routes/boothRoutes.mjs";
+import sessionRoutes from "./src/routes/sessionRoutes.mjs";
 
 dotenv.config();
 
@@ -31,6 +32,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/booths", boothRoutes);
+app.use("/api/sessions", sessionRoutes);
 
 app.get("/", (req, res) => {
   res.json({
