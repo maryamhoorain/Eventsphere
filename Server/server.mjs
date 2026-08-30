@@ -13,6 +13,8 @@ import notificationRoutes from "./src/routes/notificationRoutes.mjs";
 import boothRoutes from "./src/routes/boothRoutes.mjs";
 import sessionRoutes from "./src/routes/sessionRoutes.mjs";
 import sessionRegistrationRoutes from "./src/routes/sessionRegistrationRoutes.mjs";
+import boothVisitRoutes from "./src/routes/boothVisitRoutes.mjs";
+import feedbackRoutes from "./src/routes/feedbackRoutes.mjs";
 
 dotenv.config();
 
@@ -35,6 +37,8 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/booths", boothRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/session-registrations", sessionRegistrationRoutes);
+app.use("/api/booth-visits", boothVisitRoutes);
+app.use("/api/feedback", feedbackRoutes);
 
 app.get("/", (req, res) => {
   res.json({

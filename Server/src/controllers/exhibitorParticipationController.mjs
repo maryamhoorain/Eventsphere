@@ -118,8 +118,8 @@ const getMyApplications = async (req, res) => {
         "event",
         "title category location startDate endDate bannerImage status",
       )
+      .populate("booth", "boothNumber size location price status")
       .sort({ appliedAt: -1 });
-
     res.status(200).json({
       count: applications.length,
       applications,
@@ -137,15 +137,19 @@ const getApplicationById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const application = await ExhibitorParticipation.findOne({
-      _id: id,
-      exhibitor: req.user._id,
-    })
-      .populate(
-        "event",
-        "title description category location startDate endDate bannerImage",
-      )
-      .populate("exhibitor", "name email phone");
+   const application = await ExhibitorParticipation.findOne({
+  _id: id,
+  exhibitor: req.user._id,
+})
+  .populate(
+    "event",
+    "title description category location startDate endDate bannerImage",
+  )
+  .populate("exhibitor", "name email phone")
+  .populate(
+    "booth",
+    "boothNumber size location price status"
+  );;
 
     if (!application) {
       return res.status(404).json({
@@ -247,135 +251,128 @@ const getEventApplications = async (req, res) => {
 };
 
 const approveApplication = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { boothNumber, adminNotes } = req.body;
+  try {
+    const { id } = req.params;
+    const {adminNotes } = req.body;
 
-        const application =
-            await ExhibitorParticipation.findById(id)
-                .populate("event", "title");
+    const application = await ExhibitorParticipation.findById(id).populate(
+      "event",
+      "title",
+    );
 
-        if (!application) {
-            return res.status(404).json({
-                message: "Application not found"
-            });
-        }
-
-        if (application.status === "approved") {
-            return res.status(400).json({
-                message: "Application is already approved"
-            });
-        }
-
-        if (application.status === "cancelled") {
-            return res.status(400).json({
-                message: "Cancelled application cannot be approved"
-            });
-        }
-
-        if (application.status === "rejected") {
-            return res.status(400).json({
-                message: "Rejected application cannot be approved"
-            });
-        }
-
-        application.status = "approved";
-        application.boothNumber = boothNumber || null;
-        application.adminNotes = adminNotes || null;
-        application.approvedAt = new Date();
-
-        await application.save();
-
-        // Create notification for exhibitor
-        await Notification.create({
-            recipient: application.exhibitor,
-            title: "Exhibitor Application Approved",
-            message: `Your application for ${application.event.title} has been approved.`,
-            type: "exhibitor",
-            relatedEvent: application.event._id,
-            isRead: false
-        });
-
-        res.status(200).json({
-            message: "Exhibitor application approved successfully",
-            application
-        });
-
-    } catch (error) {
-        console.error(
-            "Approve exhibitor application error:",
-            error.message
-        );
-
-        res.status(500).json({
-            message: "Server error"
-        });
+    if (!application) {
+      return res.status(404).json({
+        message: "Application not found",
+      });
     }
+
+    if (application.status === "approved") {
+      return res.status(400).json({
+        message: "Application is already approved",
+      });
+    }
+
+    if (application.status === "cancelled") {
+      return res.status(400).json({
+        message: "Cancelled application cannot be approved",
+      });
+    }
+
+    if (application.status === "rejected") {
+      return res.status(400).json({
+        message: "Rejected application cannot be approved",
+      });
+    }
+
+    application.status = "approved";
+    application.adminNotes = adminNotes || null;
+    application.approvedAt = new Date();
+
+    await application.save();
+
+    // Create notification for exhibitor
+    await Notification.create({
+      recipient: application.exhibitor,
+      title: "Exhibitor Application Approved",
+      message: `Your application for ${application.event.title} has been approved.`,
+      type: "exhibitor",
+      relatedEvent: application.event._id,
+      isRead: false,
+    });
+
+    res.status(200).json({
+      message: "Exhibitor application approved successfully",
+      application,
+    });
+  } catch (error) {
+    console.error("Approve exhibitor application error:", error.message);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
 
 const rejectApplication = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { adminNotes } = req.body;
+  try {
+    const { id } = req.params;
+    const { adminNotes } = req.body;
 
-        const application =
-            await ExhibitorParticipation.findById(id)
-                .populate("event", "title");
+    const application = await ExhibitorParticipation.findById(id).populate(
+      "event",
+      "title",
+    );
 
-        if (!application) {
-            return res.status(404).json({
-                message: "Application not found"
-            });
-        }
-
-        if (application.status === "approved") {
-            return res.status(400).json({
-                message: "An approved application cannot be rejected"
-            });
-        }
-
-        if (application.status === "cancelled") {
-            return res.status(400).json({
-                message: "Cancelled application cannot be rejected"
-            });
-        }
-
-        if (application.status === "rejected") {
-            return res.status(400).json({
-                message: "Application is already rejected"
-            });
-        }
-
-        application.status = "rejected";
-        application.adminNotes = adminNotes || null;
-
-        await application.save();
-
-        // Create notification for exhibitor
-        await Notification.create({
-            recipient: application.exhibitor,
-            title: "Exhibitor Application Rejected",
-            message: `Your application for ${application.event.title} has been rejected.`,
-            type: "exhibitor",
-            relatedEvent: application.event._id,
-            isRead: false
-        });
-
-        res.status(200).json({
-            message: "Exhibitor application rejected successfully",
-            application
-        });
-
-    } catch (error) {
-        console.error(
-            "Reject exhibitor application error:",
-            error.message
-        );
-
-        res.status(500).json({
-            message: "Server error"
-        });
+    if (!application) {
+      return res.status(404).json({
+        message: "Application not found",
+      });
     }
+
+    if (application.status === "approved") {
+      return res.status(400).json({
+        message: "An approved application cannot be rejected",
+      });
+    }
+
+    if (application.status === "cancelled") {
+      return res.status(400).json({
+        message: "Cancelled application cannot be rejected",
+      });
+    }
+
+    if (application.status === "rejected") {
+      return res.status(400).json({
+        message: "Application is already rejected",
+      });
+    }
+
+    application.status = "rejected";
+    application.adminNotes = adminNotes || null;
+
+    await application.save();
+
+    // Create notification for exhibitor
+    await Notification.create({
+      recipient: application.exhibitor,
+      title: "Exhibitor Application Rejected",
+      message: `Your application for ${application.event.title} has been rejected.`,
+      type: "exhibitor",
+      relatedEvent: application.event._id,
+      isRead: false,
+    });
+
+    res.status(200).json({
+      message: "Exhibitor application rejected successfully",
+      application,
+    });
+  } catch (error) {
+    console.error("Reject exhibitor application error:", error.message);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
 export {
   applyForEvent,
