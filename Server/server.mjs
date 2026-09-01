@@ -1,6 +1,8 @@
+import "dotenv/config";
+
 import express from "express";
-import dotenv from "dotenv";
 import dns from "node:dns";
+
 import connectDB from "./src/config/db.mjs";
 import authRoutes from "./src/routes/authRoutes.mjs";
 import exhibitorRoutes from "./src/routes/exhibitorRoutes.mjs";
@@ -15,8 +17,8 @@ import sessionRoutes from "./src/routes/sessionRoutes.mjs";
 import sessionRegistrationRoutes from "./src/routes/sessionRegistrationRoutes.mjs";
 import boothVisitRoutes from "./src/routes/boothVisitRoutes.mjs";
 import feedbackRoutes from "./src/routes/feedbackRoutes.mjs";
-
-dotenv.config();
+import analyticsRoutes from "./src/routes/analyticsRoutes.mjs";
+import reportRoutes from "./src/routes/reportRoutes.mjs";
 
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
@@ -39,6 +41,8 @@ app.use("/api/sessions", sessionRoutes);
 app.use("/api/session-registrations", sessionRegistrationRoutes);
 app.use("/api/booth-visits", boothVisitRoutes);
 app.use("/api/feedback", feedbackRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/reports", reportRoutes);
 
 app.get("/", (req, res) => {
   res.json({
