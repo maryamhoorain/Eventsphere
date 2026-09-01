@@ -19,6 +19,7 @@ import boothVisitRoutes from "./src/routes/boothVisitRoutes.mjs";
 import feedbackRoutes from "./src/routes/feedbackRoutes.mjs";
 import analyticsRoutes from "./src/routes/analyticsRoutes.mjs";
 import reportRoutes from "./src/routes/reportRoutes.mjs";
+import profileRoutes from "./src/routes/profileRoutes.mjs";
 
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
@@ -43,6 +44,7 @@ app.use("/api/booth-visits", boothVisitRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/profile", profileRoutes);
 
 app.get("/", (req, res) => {
   res.json({
