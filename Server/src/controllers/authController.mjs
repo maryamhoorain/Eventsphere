@@ -2,275 +2,658 @@ import User from "../models/User.mjs";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import nodemailer from "nodemailer";
+
+// ======================================================
+// EMAIL CONFIGURATION
+// ======================================================
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+console.log("Email config check:", {
+  emailUser: process.env.EMAIL_USER ? "Loaded" : "Missing",
+
+  emailPass: process.env.EMAIL_PASS ? "Loaded" : "Missing",
+});
+
+// ======================================================
+// SEND EMAIL
+// ======================================================
+
+const sendEmail = async ({ to, subject, html }) => {
+  console.log("Attempting to send email...");
+  console.log("To:", to);
+  console.log("From:", process.env.EMAIL_USER ? "Loaded" : "Missing");
+  console.log("Password:", process.env.EMAIL_PASS ? "Loaded" : "Missing");
+
+  const info = await transporter.sendMail({
+    from: `"EventSphere" <${process.env.EMAIL_USER}>`,
+    to,
+    subject,
+    html,
+  });
+
+  console.log("Email sent successfully!");
+  console.log("Message ID:", info.messageId);
+
+  return info;
+};
+
+// ======================================================
+// REGISTER USER
+// ======================================================
 
 const registerUser = async (req, res) => {
-    try {
-        const { name, email, password, phone } = req.body;
+  try {
+    const { name, email, password, phone } = req.body;
 
-        // Check required fields
-        if (!name || !email || !password) {
-            return res.status(400).json({
-                message: "Name, email and password are required"
-            });
-        }
+    // ==========================================
+    // VALIDATION
+    // ==========================================
 
-        // Check if user already exists
-        const existingUser = await User.findOne({ email });
-
-        if (existingUser) {
-            return res.status(400).json({
-                message: "User already exists"
-            });
-        }
-
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create user as attendee
-        const user = await User.create({
-            name,
-            email,
-            password: hashedPassword,
-            role: "attendee",
-            phone
-        });
-
-        res.status(201).json({
-            message: "User registered successfully",
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role
-            }
-        });
-
-    } catch (error) {
-        console.error("Registration error:", error.message);
-
-        res.status(500).json({
-            message: "Server error"
-        });
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        message: "Name, email and password are required",
+      });
     }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // ==========================================
+    // CHECK EXISTING USER
+    // ==========================================
+
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        message: "User already exists",
+      });
+    }
+
+    // ==========================================
+    // HASH PASSWORD
+    // ==========================================
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // ==========================================
+    // GENERATE EMAIL VERIFICATION TOKEN
+    // ==========================================
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
+    const hashedVerificationToken = crypto
+      .createHash("sha256")
+      .update(verificationToken)
+      .digest("hex");
+
+    // Token expires after 24 hours
+    const verificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+
+    // ==========================================
+    // CREATE USER
+    // ==========================================
+
+    const user = await User.create({
+      name,
+
+      email: normalizedEmail,
+
+      password: hashedPassword,
+
+      role: "attendee",
+
+      phone,
+
+      isActive: true,
+
+      emailVerified: false,
+
+      emailVerificationToken: hashedVerificationToken,
+
+      emailVerificationExpires: verificationExpires,
+    });
+
+    // ==========================================
+    // VERIFICATION LINK
+    // ==========================================
+
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+
+    // ==========================================
+    // SEND VERIFICATION EMAIL
+    // ==========================================
+
+    await sendEmail({
+      to: user.email,
+
+      subject: "Verify your EventSphere account",
+
+      html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+
+                    <h2>Welcome to EventSphere!</h2>
+
+                    <p>
+                        Hi ${user.name},
+                    </p>
+
+                    <p>
+                        Thank you for registering with EventSphere.
+                        Please verify your email address by clicking
+                        the button below.
+                    </p>
+
+                    <p style="margin: 30px 0;">
+
+                        <a
+                            href="${verificationUrl}"
+                            style="
+                                background-color: #2563eb;
+                                color: white;
+                                padding: 12px 20px;
+                                text-decoration: none;
+                                border-radius: 6px;
+                                display: inline-block;
+                            "
+                        >
+                            Verify Email
+                        </a>
+
+                    </p>
+
+                    <p>
+                        This verification link will expire in
+                        <strong>24 hours</strong>.
+                    </p>
+
+                    <p>
+                        If you did not create an EventSphere account,
+                        you can ignore this email.
+                    </p>
+
+                    <p>
+                        Regards,<br>
+                        EventSphere Team
+                    </p>
+
+                </div>
+            `,
+    });
+
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
+    res.status(201).json({
+      message:
+        "Registration successful. Please check your email to verify your account.",
+
+      user: {
+        id: user._id,
+
+        name: user.name,
+
+        email: user.email,
+
+        role: user.role,
+
+        emailVerified: user.emailVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Registration error:", error.message);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
 
+// ======================================================
+// VERIFY EMAIL
+// ======================================================
+
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({
+        message: "Verification token is required",
+      });
+    }
+
+    // ==========================================
+    // HASH TOKEN
+    // ==========================================
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // ==========================================
+    // FIND USER
+    // ==========================================
+
+    const user = await User.findOne({
+      emailVerificationToken: hashedToken,
+
+      emailVerificationExpires: {
+        $gt: Date.now(),
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Email verification token is invalid or expired",
+      });
+    }
+
+    // ==========================================
+    // VERIFY EMAIL
+    // ==========================================
+
+    user.emailVerified = true;
+
+    user.emailVerificationToken = undefined;
+
+    user.emailVerificationExpires = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Email verified successfully. You can now log in.",
+    });
+  } catch (error) {
+    console.error("Email verification error:", error.message);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+// ======================================================
+// LOGIN USER
+// ======================================================
 
 const loginUser = async (req, res) => {
-    try {
-        const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-        // Check required fields
-        if (!email || !password) {
-            return res.status(400).json({
-                message: "Email and password are required"
-            });
-        }
+    // ==========================================
+    // VALIDATION
+    // ==========================================
 
-        // Find user
-        const user = await User.findOne({ email });
-
-        if (!user) {
-            return res.status(401).json({
-                message: "Invalid email or password"
-            });
-        }
-
-        // Check if account is active
-        if (!user.isActive) {
-            return res.status(403).json({
-                message: "Your account has been deactivated"
-            });
-        }
-
-        // Compare password
-        const isPasswordCorrect = await bcrypt.compare(
-            password,
-            user.password
-        );
-
-        if (!isPasswordCorrect) {
-            return res.status(401).json({
-                message: "Invalid email or password"
-            });
-        }
-
-        // Generate JWT
-        const token = jwt.sign(
-            {
-                userId: user._id
-            },
-            process.env.JWT_SECRET,
-            {
-                expiresIn: "7d"
-            }
-        );
-
-        res.status(200).json({
-            message: "Login successful",
-            token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role
-            }
-        });
-
-    } catch (error) {
-        console.error("Login error:", error.message);
-
-        res.status(500).json({
-            message: "Server error"
-        });
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password are required",
+      });
     }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // ==========================================
+    // FIND USER
+    // ==========================================
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
+    }
+
+    // ==========================================
+    // CHECK ACCOUNT STATUS
+    // ==========================================
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        message: "Your account has been deactivated",
+      });
+    }
+
+    // ==========================================
+    // CHECK EMAIL VERIFICATION
+    // ==========================================
+
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        message: "Please verify your email before logging in",
+      });
+    }
+
+    // ==========================================
+    // CHECK PASSWORD
+    // ==========================================
+
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordCorrect) {
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
+    }
+
+    // ==========================================
+    // GENERATE JWT
+    // ==========================================
+
+    const token = jwt.sign(
+      {
+        userId: user._id,
+      },
+
+      process.env.JWT_SECRET,
+
+      {
+        expiresIn: "7d",
+      },
+    );
+
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
+    res.status(200).json({
+      message: "Login successful",
+
+      token,
+
+      user: {
+        id: user._id,
+
+        name: user.name,
+
+        email: user.email,
+
+        role: user.role,
+
+        emailVerified: user.emailVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Login error:", error.message);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
 
+// ======================================================
+// GET CURRENT USER
+// ======================================================
 
 const getCurrentUser = async (req, res) => {
-    try {
-        res.status(200).json({
-            user: req.user
-        });
+  try {
+    res.status(200).json({
+      user: req.user,
+    });
+  } catch (error) {
+    console.error("Get current user error:", error.message);
 
-    } catch (error) {
-        console.error("Get current user error:", error.message);
-
-        res.status(500).json({
-            message: "Server error"
-        });
-    }
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
+
+// ======================================================
+// FORGOT PASSWORD
+// ======================================================
+
 const forgotPassword = async (req, res) => {
-    try {
-        const { email } = req.body;
+  try {
+    const { email } = req.body;
 
-        if (!email) {
-            return res.status(400).json({
-                message: "Email is required"
-            });
-        }
+    // ==========================================
+    // VALIDATION
+    // ==========================================
 
-        const user = await User.findOne({
-            email: email.toLowerCase()
-        });
-
-        // Don't reveal whether an email exists
-        if (!user) {
-            return res.status(200).json({
-                message:
-                    "If an account with that email exists, a password reset link will be sent."
-            });
-        }
-
-        // Generate random reset token
-        const resetToken = crypto.randomBytes(32).toString("hex");
-
-        // Hash token before storing it
-        const hashedToken = crypto
-            .createHash("sha256")
-            .update(resetToken)
-            .digest("hex");
-
-        user.resetPasswordToken = hashedToken;
-
-        // Token expires in 15 minutes
-        user.resetPasswordExpires =
-            Date.now() + 15 * 60 * 1000;
-
-        await user.save();
-
-        // For now, we'll return the token for Thunder Client testing.
-        // Later we'll send it through email.
-        res.status(200).json({
-            message:
-                "Password reset token generated successfully",
-            resetToken
-        });
-
-    } catch (error) {
-        console.error(
-            "Forgot password error:",
-            error.message
-        );
-
-        res.status(500).json({
-            message: "Server error"
-        });
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required",
+      });
     }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // ==========================================
+    // FIND USER
+    // ==========================================
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    // ==========================================
+    // DON'T REVEAL ACCOUNT EXISTENCE
+    // ==========================================
+
+    if (!user) {
+      return res.status(200).json({
+        message:
+          "If an account with that email exists, a password reset link will be sent.",
+      });
+    }
+
+    // ==========================================
+    // GENERATE RESET TOKEN
+    // ==========================================
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    // Token expires after 15 minutes
+    user.resetPasswordToken = hashedToken;
+
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
+
+    await user.save();
+
+    // ==========================================
+    // RESET URL
+    // ==========================================
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+    // ==========================================
+    // SEND RESET EMAIL
+    // ==========================================
+
+    await sendEmail({
+      to: user.email,
+
+      subject: "Reset your EventSphere password",
+
+      html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+
+                    <h2>Password Reset</h2>
+
+                    <p>
+                        Hi ${user.name},
+                    </p>
+
+                    <p>
+                        We received a request to reset your
+                        EventSphere password.
+                    </p>
+
+                    <p style="margin: 30px 0;">
+
+                        <a
+                            href="${resetUrl}"
+                            style="
+                                background-color: #2563eb;
+                                color: white;
+                                padding: 12px 20px;
+                                text-decoration: none;
+                                border-radius: 6px;
+                                display: inline-block;
+                            "
+                        >
+                            Reset Password
+                        </a>
+
+                    </p>
+
+                    <p>
+                        This link will expire in
+                        <strong>15 minutes</strong>.
+                    </p>
+
+                    <p>
+                        If you did not request a password reset,
+                        you can safely ignore this email.
+                    </p>
+
+                    <p>
+                        Regards,<br>
+                        EventSphere Team
+                    </p>
+
+                </div>
+            `,
+    });
+
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
+    res.status(200).json({
+      message:
+        "If an account with that email exists, a password reset link will be sent.",
+    });
+  } catch (error) {
+    console.error("Forgot password error:", error.message);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
+
+// ======================================================
+// RESET PASSWORD
+// ======================================================
+
 const resetPassword = async (req, res) => {
-    try {
-        const { token } = req.params;
-        const { password } = req.body;
+  try {
+    const { token } = req.params;
 
-        if (!password) {
-            return res.status(400).json({
-                message: "New password is required"
-            });
-        }
+    const { password } = req.body;
 
-        if (password.length < 6) {
-            return res.status(400).json({
-                message:
-                    "Password must be at least 6 characters long"
-            });
-        }
+    // ==========================================
+    // VALIDATION
+    // ==========================================
 
-        // Hash the token received from the user
-        const hashedToken = crypto
-            .createHash("sha256")
-            .update(token)
-            .digest("hex");
-
-        // Find user with valid token
-        const user = await User.findOne({
-            resetPasswordToken: hashedToken,
-            resetPasswordExpires: {
-                $gt: Date.now()
-            }
-        });
-
-        if (!user) {
-            return res.status(400).json({
-                message:
-                    "Password reset token is invalid or expired"
-            });
-        }
-
-        // Hash new password
-        const hashedPassword = await bcrypt.hash(
-            password,
-            10
-        );
-
-        user.password = hashedPassword;
-
-        // Clear reset token
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-
-        await user.save();
-
-        res.status(200).json({
-            message: "Password reset successfully"
-        });
-
-    } catch (error) {
-        console.error(
-            "Reset password error:",
-            error.message
-        );
-
-        res.status(500).json({
-            message: "Server error"
-        });
+    if (!token) {
+      return res.status(400).json({
+        message: "Reset token is required",
+      });
     }
+
+    if (!password) {
+      return res.status(400).json({
+        message: "New password is required",
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    // ==========================================
+    // HASH TOKEN
+    // ==========================================
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    // ==========================================
+    // FIND USER WITH VALID TOKEN
+    // ==========================================
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+
+      resetPasswordExpires: {
+        $gt: Date.now(),
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Password reset token is invalid or expired",
+      });
+    }
+
+    // ==========================================
+    // HASH NEW PASSWORD
+    // ==========================================
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    user.password = hashedPassword;
+
+    // ==========================================
+    // CLEAR RESET TOKEN
+    // ==========================================
+
+    user.resetPasswordToken = undefined;
+
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      message:
+        "Password reset successfully. You can now log in with your new password.",
+    });
+  } catch (error) {
+    console.error("Reset password error:", error.message);
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
+
+// ======================================================
+// EXPORT
+// ======================================================
 
 export {
-    registerUser,
-    loginUser,
-    getCurrentUser,
-    forgotPassword,
-    resetPassword
+  registerUser,
+  verifyEmail,
+  loginUser,
+  getCurrentUser,
+  forgotPassword,
+  resetPassword,
 };
