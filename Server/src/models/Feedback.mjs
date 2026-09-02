@@ -2,11 +2,19 @@ import mongoose from "mongoose";
 
 const feedbackSchema = new mongoose.Schema(
   {
+    // ==========================================
+    // USER WHO SUBMITTED FEEDBACK
+    // ==========================================
+
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
+
+    // ==========================================
+    // EVENT
+    // ==========================================
 
     event: {
       type: mongoose.Schema.Types.ObjectId,
@@ -14,17 +22,32 @@ const feedbackSchema = new mongoose.Schema(
       required: true,
     },
 
+    // ==========================================
+    // BOOTH
+    // Only used for booth feedback
+    // ==========================================
+
     booth: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Booth",
-      required: true,
+      default: null,
     },
+
+    // ==========================================
+    // BOOTH VISIT
+    // Only used for booth feedback
+    // ==========================================
 
     boothVisit: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "BoothVisit",
-      required: true,
+      default: null,
     },
+
+    // ==========================================
+    // SESSION
+    // Only used for session feedback
+    // ==========================================
 
     session: {
       type: mongoose.Schema.Types.ObjectId,
@@ -32,12 +55,34 @@ const feedbackSchema = new mongoose.Schema(
       default: null,
     },
 
+    // ==========================================
+    // FEEDBACK TYPE
+    // ==========================================
+
+    feedbackType: {
+      type: String,
+      enum: [
+        "booth",
+        "event",
+        "session",
+      ],
+      required: true,
+    },
+
+    // ==========================================
+    // RATING
+    // ==========================================
+
     rating: {
       type: Number,
       required: true,
       min: 1,
       max: 5,
     },
+
+    // ==========================================
+    // COMMENT
+    // ==========================================
 
     comment: {
       type: String,
@@ -50,7 +95,11 @@ const feedbackSchema = new mongoose.Schema(
   }
 );
 
-// One feedback per attendee per booth visit
+
+// ======================================================
+// ONE BOOTH FEEDBACK PER ATTENDEE PER BOOTH VISIT
+// ======================================================
+
 feedbackSchema.index(
   {
     user: 1,
@@ -58,9 +107,62 @@ feedbackSchema.index(
   },
   {
     unique: true,
+    partialFilterExpression: {
+      feedbackType: "booth",
+      boothVisit: {
+        $exists: true,
+        $ne: null,
+      },
+    },
   }
 );
 
-const Feedback = mongoose.model("Feedback", feedbackSchema);
+
+// ======================================================
+// ONE EVENT FEEDBACK PER ATTENDEE PER EVENT
+// ======================================================
+
+feedbackSchema.index(
+  {
+    user: 1,
+    event: 1,
+    feedbackType: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      feedbackType: "event",
+    },
+  }
+);
+
+
+// ======================================================
+// ONE SESSION FEEDBACK PER ATTENDEE PER SESSION
+// ======================================================
+
+feedbackSchema.index(
+  {
+    user: 1,
+    session: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      feedbackType: "session",
+      session: {
+        $exists: true,
+        $ne: null,
+      },
+    },
+  }
+);
+
+
+const Feedback =
+  mongoose.model(
+    "Feedback",
+    feedbackSchema
+  );
 
 export default Feedback;

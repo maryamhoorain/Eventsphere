@@ -2,8 +2,12 @@ import express from "express";
 
 import {
   createBoothFeedback,
+  createEventFeedback,
+  createSessionFeedback,
   getMyFeedback,
   getFeedbackById,
+  updateFeedback,
+  deleteFeedback,
 } from "../controllers/feedbackController.mjs";
 
 import authMiddleware from "../middleware/authMiddleware.mjs";
@@ -26,6 +30,31 @@ router.post(
 
 
 // ==========================================
+// CREATE EVENT FEEDBACK
+// ATTENDEE
+// ==========================================
+
+router.post(
+  "/event/:eventId",
+  authMiddleware,
+  authorizeRoles("attendee"),
+  createEventFeedback
+);
+
+// ==========================================
+// CREATE SESSION FEEDBACK
+// ATTENDEE
+// ==========================================
+
+router.post(
+  "/session/:sessionId",
+  authMiddleware,
+  authorizeRoles("attendee"),
+  createSessionFeedback
+);
+
+
+// ==========================================
 // GET MY FEEDBACK
 // ATTENDEE
 // ==========================================
@@ -36,7 +65,29 @@ router.get(
   authorizeRoles("attendee"),
   getMyFeedback
 );
+// ==========================================
+// UPDATE MY FEEDBACK
+// ATTENDEE
+// ==========================================
 
+router.put(
+  "/:id",
+  authMiddleware,
+  authorizeRoles("attendee"),
+  updateFeedback
+);
+
+// ==========================================
+// DELETE FEEDBACK
+// ADMIN / ORGANIZER
+// ==========================================
+
+router.delete(
+  "/:id",
+  authMiddleware,
+  authorizeRoles("admin", "organizer"),
+  deleteFeedback
+);
 
 // ==========================================
 // GET FEEDBACK BY ID
