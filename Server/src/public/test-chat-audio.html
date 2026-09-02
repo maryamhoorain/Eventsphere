@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EventSphere Chat Audio Test</title>
+</head>
+
+<body>
+
+    <h2>Send Chat Audio</h2>
+
+    <input
+        type="text"
+        id="token"
+        placeholder="JWT Token"
+        style="width: 500px;"
+    />
+
+    <br><br>
+
+    <input
+        type="text"
+        id="conversationId"
+        placeholder="Conversation ID"
+        style="width: 500px;"
+    />
+
+    <br><br>
+
+    <input
+        type="file"
+        id="audio"
+        accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/aac"
+    />
+
+    <br><br>
+
+    <button onclick="sendAudio()">
+        Send Audio
+    </button>
+
+    <pre id="result"></pre>
+
+    <script>
+
+        async function sendAudio() {
+
+            const token =
+                document.getElementById("token").value;
+
+            const conversationId =
+                document.getElementById("conversationId").value;
+
+            const audio =
+                document.getElementById("audio").files[0];
+
+            if (!token || !conversationId || !audio) {
+
+                alert(
+                    "Please provide token, conversation ID and audio file."
+                );
+
+                return;
+            }
+
+            const formData = new FormData();
+
+            formData.append("audio", audio);
+
+            try {
+
+                const response = await fetch(
+                    `/api/chat/conversations/${conversationId}/audio`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        },
+
+                        body: formData
+                    }
+                );
+
+                const data = await response.json();
+
+                document.getElementById("result").textContent =
+                    JSON.stringify(data, null, 2);
+
+            } catch (error) {
+
+                document.getElementById("result").textContent =
+                    error.message;
+            }
+        }
+
+    </script>
+
+</body>
+</html>

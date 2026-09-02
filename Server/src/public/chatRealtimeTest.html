@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>EventSphere - Chat Realtime Test</title>
+
+  <!-- Socket.IO client -->
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      margin-bottom: 25px;
+    }
+
+    .section {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      margin: 8px 0 15px;
+    }
+
+    button {
+      padding: 10px 16px;
+      margin-right: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    #connectionStatus {
+      font-weight: bold;
+    }
+
+    #onlineUsers {
+      min-height: 40px;
+      padding: 10px;
+      background: #f8f8f8;
+      border-radius: 5px;
+    }
+
+    #typingStatus {
+      min-height: 30px;
+      font-weight: bold;
+    }
+
+    #eventLog {
+      background: #111;
+      color: #00ff66;
+      padding: 15px;
+      height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 13px;
+      border-radius: 5px;
+    }
+
+    .online {
+      color: green;
+    }
+
+    .offline {
+      color: red;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>EventSphere Chat Realtime Test</h1>
+
+  <!-- ========================================= -->
+  <!-- AUTHENTICATION -->
+  <!-- ========================================= -->
+
+  <div class="section">
+
+    <h2>1. Connection</h2>
+
+    <label>JWT Token</label>
+
+    <input
+      type="text"
+      id="token"
+      placeholder="Paste JWT token here"
+    />
+
+    <button onclick="connectSocket()">
+      Connect
+    </button>
+
+    <button onclick="disconnectSocket()">
+      Disconnect
+    </button>
+
+    <p>
+      Status:
+      <span id="connectionStatus">
+        Disconnected
+      </span>
+    </p>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- CONVERSATION -->
+  <!-- ========================================= -->
+
+  <div class="section">
+
+    <h2>2. Conversation</h2>
+
+    <label>Conversation ID</label>
+
+    <input
+      type="text"
+      id="conversationId"
+      placeholder="Enter conversation ID"
+    />
+
+    <button onclick="joinConversation()">
+      Join Conversation
+    </button>
+
+    <button onclick="leaveConversation()">
+      Leave Conversation
+    </button>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- ONLINE USERS -->
+  <!-- ========================================= -->
+
+  <div class="section">
+
+    <h2>3. Online Users</h2>
+
+    <div id="onlineUsers">
+      No online users information received yet.
+    </div>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- TYPING INDICATOR -->
+  <!-- ========================================= -->
+
+  <div class="section">
+
+    <h2>4. Typing Indicator</h2>
+
+    <button onclick="startTyping()">
+      Start Typing
+    </button>
+
+    <button onclick="stopTyping()">
+      Stop Typing
+    </button>
+
+    <div id="typingStatus">
+      Nobody is typing...
+    </div>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- EVENT LOG -->
+  <!-- ========================================= -->
+
+  <div class="section">
+
+    <h2>5. Realtime Event Log</h2>
+
+    <div id="eventLog"></div>
+
+  </div>
+
+
+  <script>
+
+    let socket = null;
+
+    let typingTimeout = null;
+
+
+    // =========================================
+    // HELPER FUNCTIONS
+    // =========================================
+
+    function getToken() {
+      return document
+        .getElementById("token")
+        .value
+        .trim();
+    }
+
+
+    function getConversationId() {
+      return document
+        .getElementById("conversationId")
+        .value
+        .trim();
+    }
+
+
+    function logEvent(eventName, data = null) {
+
+      const log = document.getElementById("eventLog");
+
+      const timestamp =
+        new Date().toLocaleTimeString();
+
+      let message =
+        `[${timestamp}] ${eventName}`;
+
+      if (data !== null) {
+        message +=
+          "\n" +
+          JSON.stringify(data, null, 2);
+      }
+
+      message += "\n\n";
+
+      log.textContent += message;
+
+      log.scrollTop = log.scrollHeight;
+    }
+
+
+    function setConnectionStatus(
+      text,
+      className = ""
+    ) {
+
+      const status =
+        document.getElementById(
+          "connectionStatus"
+        );
+
+      status.textContent = text;
+
+      status.className = className;
+    }
+
+
+    // =========================================
+    // CONNECT SOCKET
+    // =========================================
+
+    function connectSocket() {
+
+      const token = getToken();
+
+      if (!token) {
+        alert("Please enter your JWT token.");
+        return;
+      }
+
+
+      // Prevent duplicate connections
+
+      if (socket) {
+        socket.disconnect();
+      }
+
+
+      socket = io("http://localhost:5000", {
+
+        auth: {
+          token: token
+        }
+
+      });
+
+
+      // =======================================
+      // CONNECTED
+      // =======================================
+
+      socket.on("connect", () => {
+
+        setConnectionStatus(
+          "Connected",
+          "online"
+        );
+
+        logEvent(
+          "CONNECTED",
+          {
+            socketId: socket.id
+          }
+        );
+
+      });
+
+
+      // =======================================
+      // CONNECTION ERROR
+      // =======================================
+
+      socket.on(
+        "connect_error",
+        (error) => {
+
+          setConnectionStatus(
+            "Connection Error",
+            "offline"
+          );
+
+          logEvent(
+            "CONNECT_ERROR",
+            {
+              message: error.message
+            }
+          );
+
+        }
+      );
+
+
+      // =======================================
+      // DISCONNECTED
+      // =======================================
+
+      socket.on("disconnect", (reason) => {
+
+        setConnectionStatus(
+          "Disconnected",
+          "offline"
+        );
+
+        logEvent(
+          "DISCONNECTED",
+          {
+            reason: reason
+          }
+        );
+
+      });
+
+
+      // =======================================
+      // ONLINE USERS
+      // =======================================
+
+      socket.on(
+        "online_users",
+        (data) => {
+
+          logEvent(
+            "online_users",
+            data
+          );
+
+          displayOnlineUsers(
+            data.userIds || []
+          );
+
+        }
+      );
+
+
+      // =======================================
+      // USER ONLINE
+      // =======================================
+
+      socket.on(
+        "user_online",
+        (data) => {
+
+          logEvent(
+            "user_online",
+            data
+          );
+
+          alert(
+            `${data.name} is now online`
+          );
+
+        }
+      );
+
+
+      // =======================================
+      // USER OFFLINE
+      // =======================================
+
+      socket.on(
+        "user_offline",
+        (data) => {
+
+          logEvent(
+            "user_offline",
+            data
+          );
+
+          alert(
+            `${data.name} is now offline`
+          );
+
+        }
+      );
+
+
+      // =======================================
+      // CONVERSATION JOINED
+      // =======================================
+
+      socket.on(
+        "conversation_joined",
+        (data) => {
+
+          logEvent(
+            "conversation_joined",
+            data
+          );
+
+        }
+      );
+
+
+      // =======================================
+      // USER TYPING
+      // =======================================
+
+      socket.on(
+        "user_typing",
+        (data) => {
+
+          logEvent(
+            "user_typing",
+            data
+          );
+
+
+          const typingStatus =
+            document.getElementById(
+              "typingStatus"
+            );
+
+
+          if (data.isTyping) {
+
+            typingStatus.textContent =
+              `${data.name} is typing...`;
+
+          } else {
+
+            typingStatus.textContent =
+              "Nobody is typing...";
+
+          }
+
+        }
+      );
+
+
+      // =======================================
+      // NEW MESSAGE
+      // =======================================
+
+      socket.on(
+        "new_message",
+        (message) => {
+
+          logEvent(
+            "new_message",
+            message
+          );
+
+        }
+      );
+
+
+      // =======================================
+      // MESSAGES READ
+      // =======================================
+
+      socket.on(
+        "messages_read",
+        (data) => {
+
+          logEvent(
+            "messages_read",
+            data
+          );
+
+        }
+      );
+
+
+      // =======================================
+      // CHAT ERROR
+      // =======================================
+
+      socket.on(
+        "chat_error",
+        (data) => {
+
+          logEvent(
+            "chat_error",
+            data
+          );
+
+        }
+      );
+
+
+      // =======================================
+      // MESSAGE ERROR
+      // =======================================
+
+      socket.on(
+        "message_error",
+        (data) => {
+
+          logEvent(
+            "message_error",
+            data
+          );
+
+        }
+      );
+
+    }
+
+
+    // =========================================
+    // DISCONNECT SOCKET
+    // =========================================
+
+    function disconnectSocket() {
+
+      if (!socket) {
+        return;
+      }
+
+      socket.disconnect();
+
+      socket = null;
+
+      setConnectionStatus(
+        "Disconnected",
+        "offline"
+      );
+
+      logEvent(
+        "MANUAL_DISCONNECT"
+      );
+
+    }
+
+
+    // =========================================
+    // JOIN CONVERSATION
+    // =========================================
+
+    function joinConversation() {
+
+      if (!socket) {
+        alert("Connect to Socket.IO first.");
+        return;
+      }
+
+
+      if (!socket.connected) {
+        alert("Socket is not connected.");
+        return;
+      }
+
+
+      const conversationId =
+        getConversationId();
+
+
+      if (!conversationId) {
+        alert(
+          "Please enter a conversation ID."
+        );
+
+        return;
+      }
+
+
+      socket.emit(
+        "join_conversation",
+        conversationId
+      );
+
+
+      logEvent(
+        "join_conversation",
+        {
+          conversationId
+        }
+      );
+
+    }
+
+
+    // =========================================
+    // LEAVE CONVERSATION
+    // =========================================
+
+    function leaveConversation() {
+
+      if (!socket) {
+        alert("Socket is not connected.");
+        return;
+      }
+
+
+      const conversationId =
+        getConversationId();
+
+
+      if (!conversationId) {
+        alert(
+          "Please enter a conversation ID."
+        );
+
+        return;
+      }
+
+
+      socket.emit(
+        "leave_conversation",
+        conversationId
+      );
+
+
+      logEvent(
+        "leave_conversation",
+        {
+          conversationId
+        }
+      );
+
+
+      document.getElementById(
+        "typingStatus"
+      ).textContent =
+        "Nobody is typing...";
+
+    }
+
+
+    // =========================================
+    // START TYPING
+    // =========================================
+
+    function startTyping() {
+
+      if (!socket || !socket.connected) {
+
+        alert(
+          "Connect to Socket.IO first."
+        );
+
+        return;
+      }
+
+
+      const conversationId =
+        getConversationId();
+
+
+      if (!conversationId) {
+
+        alert(
+          "Please enter a conversation ID."
+        );
+
+        return;
+      }
+
+
+      socket.emit(
+        "typing_start",
+        {
+          conversationId
+        }
+      );
+
+
+      logEvent(
+        "typing_start",
+        {
+          conversationId
+        }
+      );
+
+    }
+
+
+    // =========================================
+    // STOP TYPING
+    // =========================================
+
+    function stopTyping() {
+
+      if (!socket || !socket.connected) {
+
+        alert(
+          "Connect to Socket.IO first."
+        );
+
+        return;
+      }
+
+
+      const conversationId =
+        getConversationId();
+
+
+      if (!conversationId) {
+
+        alert(
+          "Please enter a conversation ID."
+        );
+
+        return;
+      }
+
+
+      socket.emit(
+        "typing_stop",
+        {
+          conversationId
+        }
+      );
+
+
+      logEvent(
+        "typing_stop",
+        {
+          conversationId
+        }
+      );
+
+
+      document.getElementById(
+        "typingStatus"
+      ).textContent =
+        "Nobody is typing...";
+
+    }
+
+
+    // =========================================
+    // DISPLAY ONLINE USERS
+    // =========================================
+
+    function displayOnlineUsers(
+      userIds
+    ) {
+
+      const container =
+        document.getElementById(
+          "onlineUsers"
+        );
+
+
+      if (!userIds.length) {
+
+        container.textContent =
+          "No users currently online.";
+
+        return;
+
+      }
+
+
+      container.innerHTML =
+        userIds
+          .map(
+            (userId) =>
+              `<div class="online">
+                ● ${userId}
+              </div>`
+          )
+          .join("");
+
+    }
+
+  </script>
+
+</body>
+</html>

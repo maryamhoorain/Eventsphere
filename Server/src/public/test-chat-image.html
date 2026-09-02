@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EventSphere Chat Image Test</title>
+</head>
+<body>
+
+    <h2>Send Chat Image</h2>
+
+    <input
+        type="text"
+        id="token"
+        placeholder="JWT Token"
+        style="width: 500px;"
+    />
+
+    <br><br>
+
+    <input
+        type="text"
+        id="conversationId"
+        placeholder="Conversation ID"
+        style="width: 500px;"
+    />
+
+    <br><br>
+
+    <input
+        type="file"
+        id="image"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+    />
+
+    <br><br>
+
+    <button onclick="sendImage()">
+        Send Image
+    </button>
+
+    <pre id="result"></pre>
+
+    <script>
+        async function sendImage() {
+
+            const token =
+                document.getElementById("token").value;
+
+            const conversationId =
+                document.getElementById("conversationId").value;
+
+            const image =
+                document.getElementById("image").files[0];
+
+            if (!token || !conversationId || !image) {
+                alert("Please provide token, conversation ID and image.");
+                return;
+            }
+
+            const formData = new FormData();
+
+            formData.append("image", image);
+
+            try {
+
+                const response = await fetch(
+                    `http://localhost:5000/api/chat/conversations/${conversationId}/images`,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        },
+
+                        body: formData
+                    }
+                );
+
+                const data = await response.json();
+
+                document.getElementById("result").textContent =
+                    JSON.stringify(data, null, 2);
+
+            } catch (error) {
+
+                document.getElementById("result").textContent =
+                    error.message;
+            }
+        }
+    </script>
+
+</body>
+</html>

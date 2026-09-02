@@ -1,0 +1,246 @@
+<!doctype html>
+<html>
+  <head>
+    <title>EventSphere Real-Time Chat Test</title>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 40px auto;
+      }
+
+      input {
+        width: 100%;
+        padding: 10px;
+        margin: 8px 0;
+        box-sizing: border-box;
+      }
+
+      button {
+        padding: 10px 16px;
+        margin: 5px;
+        cursor: pointer;
+      }
+
+      #messages {
+        border: 1px solid #ccc;
+        padding: 15px;
+        height: 300px;
+        overflow-y: auto;
+        margin-top: 20px;
+      }
+
+      .message {
+        margin-bottom: 10px;
+        padding: 8px;
+        background: #f2f2f2;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>EventSphere Real-Time Chat</h2>
+
+    <p id="status">Connecting...</p>
+
+    <label> JWT Token </label>
+
+    <input type="text" id="token" placeholder="Enter JWT token" />
+
+    <button onclick="connectSocket()">Connect</button>
+
+    <hr />
+
+    <label> Conversation ID </label>
+
+    <input type="text" id="conversationId" value="6a97e7f4e624037aeac62364" />
+
+    <button onclick="joinConversation()">Join Conversation</button>
+
+    <hr />
+
+    <label> Message </label>
+
+    <input type="text" id="messageText" placeholder="Type your message..." />
+
+    <button onclick="sendMessage()">Send Message</button>
+
+    <div id="messages"></div>
+
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+    <button onclick="markMessagesRead()">Mark Messages Read</button>
+    <script>
+      let socket = null;
+
+      // =========================
+      // CONNECT
+      // =========================
+
+      function connectSocket() {
+        const token = document.getElementById("token").value.trim();
+
+        if (!token) {
+          alert("Please enter your JWT token");
+
+          return;
+        }
+
+        socket = io("http://localhost:5000", {
+          auth: {
+            token: token,
+          },
+        });
+
+        socket.on("connect", () => {
+          document.getElementById("status").textContent =
+            "Connected and authenticated";
+
+          console.log("Socket connected:", socket.id);
+        });
+
+        socket.on("connect_error", (error) => {
+          document.getElementById("status").textContent =
+            "Authentication failed: " + error.message;
+
+          console.error(error);
+        });
+
+        socket.on("conversation_joined", (data) => {
+          console.log("Conversation joined:", data.conversationId);
+
+          document.getElementById("status").textContent = "Joined conversation";
+        });
+
+        // =========================
+        // RECEIVE MESSAGE
+        // =========================
+
+        socket.on("new_message", (message) => {
+          console.log("New message:", message);
+
+          displayMessage(message);
+        });
+
+        // =========================
+        // MESSAGE ERROR
+        // =========================
+
+        socket.on("message_error", (data) => {
+          console.error("Message error:", data.message);
+
+          alert(data.message);
+        });
+
+        // =========================
+        // CHAT ERROR
+        // =========================
+
+        socket.on("chat_error", (data) => {
+          console.error("Chat error:", data.message);
+
+          alert(data.message);
+        });
+      }
+
+      // =========================
+      // JOIN
+      // =========================
+
+      function joinConversation() {
+        if (!socket || !socket.connected) {
+          alert("Connect socket first");
+
+          return;
+        }
+
+        const conversationId = document
+          .getElementById("conversationId")
+          .value.trim();
+
+        socket.emit("join_conversation", conversationId);
+      }
+
+      // =========================
+      // SEND MESSAGE
+      // =========================
+
+      function sendMessage() {
+        if (!socket || !socket.connected) {
+          alert("Connect socket first");
+
+          return;
+        }
+
+        const conversationId = document
+          .getElementById("conversationId")
+          .value.trim();
+
+        const text = document.getElementById("messageText").value.trim();
+
+        if (!text) {
+          return;
+        }
+
+        socket.emit("send_message", {
+          conversationId,
+          text,
+        });
+
+        document.getElementById("messageText").value = "";
+      }
+
+      // =========================
+      // DISPLAY MESSAGE
+      // =========================
+
+      function displayMessage(message) {
+        const messages = document.getElementById("messages");
+
+        const div = document.createElement("div");
+
+        div.className = "message";
+
+        const senderName = message.sender?.name || "Unknown";
+
+        div.innerHTML = `<strong>${senderName}:</strong>
+                 ${escapeHtml(message.text)}`;
+
+        messages.appendChild(div);
+
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      // =========================
+      // ESCAPE HTML
+      // =========================
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+
+        div.textContent = text;
+
+        return div.innerHTML;
+      }
+      function markMessagesRead() {
+    const conversationId =
+        document.getElementById("conversationId").value.trim();
+
+    if (!conversationId) {
+        alert("Please enter conversation ID");
+        return;
+    }
+
+    if (!socket || !socket.connected) {
+        alert("Socket is not connected");
+        return;
+    }
+
+    socket.emit("mark_messages_read", {
+        conversationId
+    });
+}
+    </script>
+  </body>
+</html>

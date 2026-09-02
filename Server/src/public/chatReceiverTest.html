@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EventSphere Chat Receiver Test</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+        }
+
+        input {
+            width: 500px;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 8px 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        #messages {
+            margin-top: 20px;
+        }
+
+        .message {
+            border: 1px solid #ccc;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+        }
+
+        .message img {
+            max-width: 300px;
+            display: block;
+            margin-top: 10px;
+        }
+
+        .message audio {
+            margin-top: 10px;
+            width: 350px;
+        }
+
+        .status {
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>EventSphere Chat Receiver Test</h2>
+
+    <div class="status" id="status">
+        Not connected
+    </div>
+
+    <input
+        type="text"
+        id="token"
+        placeholder="JWT Token"
+    />
+
+    <br>
+
+    <button onclick="connectSocket()">
+        Connect Socket
+    </button>
+
+    <br>
+
+    <input
+        type="text"
+        id="conversationId"
+        placeholder="Conversation ID"
+    />
+
+    <br>
+
+    <button onclick="joinConversation()">
+        Join Conversation
+    </button>
+
+    <hr>
+
+    <h3>Received Messages</h3>
+
+    <div id="messages"></div>
+
+
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+    <script>
+
+        let socket = null;
+
+
+        // ==========================================
+        // CONNECT SOCKET
+        // ==========================================
+
+        function connectSocket() {
+
+            const token =
+                document.getElementById("token").value.trim();
+
+            if (!token) {
+
+                alert("Please enter JWT token.");
+
+                return;
+            }
+
+
+            socket = io("http://localhost:5000", {
+
+                auth: {
+                    token: token
+                }
+
+            });
+
+
+            // ==========================================
+            // CONNECTED
+            // ==========================================
+
+            socket.on("connect", () => {
+
+                document.getElementById("status").textContent =
+                    "Connected: " + socket.id;
+
+                console.log("Socket connected:", socket.id);
+
+            });
+
+
+            // ==========================================
+            // CONNECTION ERROR
+            // ==========================================
+
+            socket.on("connect_error", (error) => {
+
+                document.getElementById("status").textContent =
+                    "Connection error: " + error.message;
+
+                console.error(
+                    "Socket connection error:",
+                    error.message
+                );
+
+            });
+
+
+            // ==========================================
+            // CONVERSATION JOINED
+            // ==========================================
+
+            socket.on("conversation_joined", (data) => {
+
+                console.log(
+                    "Conversation joined:",
+                    data
+                );
+
+            });
+
+
+            // ==========================================
+            // NEW MESSAGE
+            // TEXT / IMAGE / AUDIO
+            // ==========================================
+
+            socket.on("new_message", (message) => {
+
+                console.log(
+                    "New real-time message:",
+                    message
+                );
+
+                displayMessage(message);
+
+            });
+
+
+            // ==========================================
+            // MESSAGE ERROR
+            // ==========================================
+
+            socket.on("message_error", (data) => {
+
+                console.error(
+                    "Message error:",
+                    data
+                );
+
+                alert(data.message);
+
+            });
+
+
+            // ==========================================
+            // CHAT ERROR
+            // ==========================================
+
+            socket.on("chat_error", (data) => {
+
+                console.error(
+                    "Chat error:",
+                    data
+                );
+
+                alert(data.message);
+
+            });
+
+        }
+
+
+        // ==========================================
+        // JOIN CONVERSATION
+        // ==========================================
+
+        function joinConversation() {
+
+            const conversationId =
+                document.getElementById("conversationId")
+                    .value
+                    .trim();
+
+
+            if (!socket || !socket.connected) {
+
+                alert("Connect socket first.");
+
+                return;
+            }
+
+
+            if (!conversationId) {
+
+                alert("Please enter conversation ID.");
+
+                return;
+            }
+
+
+            socket.emit(
+                "join_conversation",
+                conversationId
+            );
+
+        }
+
+
+        // ==========================================
+        // DISPLAY MESSAGE
+        // ==========================================
+
+        function displayMessage(message) {
+
+            const container =
+                document.getElementById("messages");
+
+
+            const messageDiv =
+                document.createElement("div");
+
+            messageDiv.className = "message";
+
+
+            // ==========================================
+            // SENDER
+            // ==========================================
+
+            const sender =
+                document.createElement("strong");
+
+            sender.textContent =
+                (message.sender?.name || "Unknown") + ": ";
+
+            messageDiv.appendChild(sender);
+
+
+            // ==========================================
+            // TEXT MESSAGE
+            // ==========================================
+
+            if (message.messageType === "text") {
+
+                const text =
+                    document.createElement("span");
+
+                text.textContent =
+                    message.text || "";
+
+                messageDiv.appendChild(text);
+
+            }
+
+
+            // ==========================================
+            // IMAGE MESSAGE
+            // ==========================================
+
+            else if (message.messageType === "image") {
+
+                const image =
+                    document.createElement("img");
+
+                image.src =
+                    message.fileUrl;
+
+                image.alt =
+                    "Chat image";
+
+                messageDiv.appendChild(image);
+
+            }
+
+
+            // ==========================================
+            // AUDIO MESSAGE
+            // ==========================================
+
+            else if (message.messageType === "audio") {
+
+                const audio =
+                    document.createElement("audio");
+
+                audio.controls = true;
+
+                audio.src =
+                    message.fileUrl;
+
+                messageDiv.appendChild(audio);
+
+            }
+
+
+            // ==========================================
+            // TIMESTAMP
+            // ==========================================
+
+            const time =
+                document.createElement("small");
+
+            time.style.display = "block";
+            time.style.marginTop = "8px";
+
+            time.textContent =
+                message.createdAt
+                    ? new Date(message.createdAt)
+                        .toLocaleString()
+                    : "";
+
+            messageDiv.appendChild(time);
+
+
+            container.appendChild(messageDiv);
+
+        }
+
+    </script>
+
+</body>
+</html>
