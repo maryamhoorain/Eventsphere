@@ -14,12 +14,14 @@ const feedbackSchema = new mongoose.Schema(
 
     // ==========================================
     // EVENT
+    // Required for booth, event and session
+    // Not required for website feedback
     // ==========================================
 
     event: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Event",
-      required: true,
+      default: null,
     },
 
     // ==========================================
@@ -65,6 +67,7 @@ const feedbackSchema = new mongoose.Schema(
         "booth",
         "event",
         "session",
+        "website",
       ],
       required: true,
     },
@@ -81,12 +84,37 @@ const feedbackSchema = new mongoose.Schema(
     },
 
     // ==========================================
-    // COMMENT
+    // LOW RATING REASON
+    //
+    // Required for booth/session if rating < 3
+    // ==========================================
+
+    reason: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    // ==========================================
+    // REASON DETAILS
+    // Optional additional explanation
+    // ==========================================
+
+    reasonDetails: {
+      type: String,
+      trim: true,
+      maxlength: 1000,
+      default: null,
+    },
+
+    // ==========================================
+    // OPTIONAL COMMENT
     // ==========================================
 
     comment: {
       type: String,
       trim: true,
+      maxlength: 1000,
       default: null,
     },
   },
@@ -94,7 +122,6 @@ const feedbackSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
 
 // ======================================================
 // ONE BOOTH FEEDBACK PER ATTENDEE PER BOOTH VISIT
@@ -117,7 +144,6 @@ feedbackSchema.index(
   }
 );
 
-
 // ======================================================
 // ONE EVENT FEEDBACK PER ATTENDEE PER EVENT
 // ======================================================
@@ -132,10 +158,13 @@ feedbackSchema.index(
     unique: true,
     partialFilterExpression: {
       feedbackType: "event",
+      event: {
+        $exists: true,
+        $ne: null,
+      },
     },
   }
 );
-
 
 // ======================================================
 // ONE SESSION FEEDBACK PER ATTENDEE PER SESSION
@@ -158,11 +187,26 @@ feedbackSchema.index(
   }
 );
 
+// ======================================================
+// ONE WEBSITE FEEDBACK PER USER
+// ======================================================
 
-const Feedback =
-  mongoose.model(
-    "Feedback",
-    feedbackSchema
-  );
+feedbackSchema.index(
+  {
+    user: 1,
+    feedbackType: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      feedbackType: "website",
+    },
+  }
+);
+
+const Feedback = mongoose.model(
+  "Feedback",
+  feedbackSchema
+);
 
 export default Feedback;

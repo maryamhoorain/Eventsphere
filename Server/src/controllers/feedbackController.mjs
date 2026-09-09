@@ -6,15 +6,116 @@ import Session from "../models/Session.mjs";
 import SessionRegistration from "../models/SessionRegistration.mjs";
 
 
-// ==========================================
+// ======================================================
+// ALLOWED FEEDBACK REASONS
+// ======================================================
+
+const BOOTH_REASONS = [
+  "poor_interaction",
+  "staff_unavailable",
+  "unclear_information",
+  "poor_booth_setup",
+  "product_or_service_issue",
+  "other",
+];
+
+const SESSION_REASONS = [
+  "poor_content",
+  "speaker_issue",
+  "too_long",
+  "too_short",
+  "technical_issue",
+  "topic_not_as_expected",
+  "other",
+];
+
+
+// ======================================================
+// COMMON VALIDATION HELPERS
+// ======================================================
+
+const validateRating = (rating) => {
+  if (
+    rating === undefined ||
+    rating === null ||
+    rating === ""
+  ) {
+    return "Rating is required";
+  }
+
+  const numericRating = Number(rating);
+
+  if (
+    !Number.isInteger(numericRating) ||
+    numericRating < 1 ||
+    numericRating > 5
+  ) {
+    return "Rating must be an integer between 1 and 5";
+  }
+
+  return null;
+};
+
+
+const validateLowRatingReason = (
+  feedbackType,
+  rating,
+  reason
+) => {
+  // Only booth and session require a reason
+  // when rating is below 3.
+
+  if (
+    (feedbackType === "booth" ||
+      feedbackType === "session") &&
+    rating < 3
+  ) {
+    if (!reason) {
+      return "A reason is required for ratings below 3";
+    }
+
+    const allowedReasons =
+      feedbackType === "booth"
+        ? BOOTH_REASONS
+        : SESSION_REASONS;
+
+    if (!allowedReasons.includes(reason)) {
+      return `Invalid reason for ${feedbackType} feedback`;
+    }
+  }
+
+  return null;
+};
+
+
+const cleanOptionalText = (value) => {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  return value.trim();
+};
+
+
+// ======================================================
 // CREATE BOOTH FEEDBACK
 // ATTENDEE
-// ==========================================
+// ======================================================
 
 const createBoothFeedback = async (req, res) => {
   try {
     const { boothVisitId } = req.params;
-    const { rating, comment } = req.body;
+
+    const {
+      rating,
+      reason,
+      reasonDetails,
+      comment,
+    } = req.body;
 
     const userId = req.user._id;
 
@@ -22,15 +123,29 @@ const createBoothFeedback = async (req, res) => {
     // VALIDATE RATING
     // ==========================================
 
-    if (rating === undefined || rating === null) {
+    const ratingError = validateRating(rating);
+
+    if (ratingError) {
       return res.status(400).json({
-        message: "Rating is required",
+        message: ratingError,
       });
     }
 
-    if (rating < 1 || rating > 5) {
+    const numericRating = Number(rating);
+
+    // ==========================================
+    // VALIDATE LOW RATING REASON
+    // ==========================================
+
+    const reasonError = validateLowRatingReason(
+      "booth",
+      numericRating,
+      reason
+    );
+
+    if (reasonError) {
       return res.status(400).json({
-        message: "Rating must be between 1 and 5",
+        message: reasonError,
       });
     }
 
@@ -51,17 +166,20 @@ const createBoothFeedback = async (req, res) => {
     }
 
     // ==========================================
-    // CHECK IF FEEDBACK ALREADY EXISTS
+    // CHECK EXISTING FEEDBACK
     // ==========================================
 
-    const existingFeedback = await Feedback.findOne({
-      user: userId,
-      boothVisit: boothVisit._id,
-    });
+    const existingFeedback =
+      await Feedback.findOne({
+        user: userId,
+        boothVisit: boothVisit._id,
+        feedbackType: "booth",
+      });
 
     if (existingFeedback) {
       return res.status(400).json({
-        message: "You have already submitted feedback for this booth visit",
+        message:
+          "You have already submitted feedback for this booth visit",
         feedback: existingFeedback,
       });
     }
@@ -76,30 +194,58 @@ const createBoothFeedback = async (req, res) => {
       booth: boothVisit.booth,
       boothVisit: boothVisit._id,
       feedbackType: "booth",
-      rating,
-      comment: comment || null,
+      rating: numericRating,
+      reason: cleanOptionalText(reason),
+      reasonDetails: cleanOptionalText(reasonDetails),
+      comment: cleanOptionalText(comment),
     });
 
     // ==========================================
-    // RETURN POPULATED FEEDBACK
+    // POPULATE
     // ==========================================
 
-    const populatedFeedback = await Feedback.findById(feedback._id)
-      .populate("booth", "boothNumber size location price")
-      .populate("event", "title category")
-      .populate("boothVisit", "visitedAt");
+    const populatedFeedback =
+      await Feedback.findById(feedback._id)
+        .populate(
+          "booth",
+          "boothNumber size location price status"
+        )
+        .populate(
+          "event",
+          "title category location startDate endDate"
+        )
+        .populate(
+          "boothVisit",
+          "visitedAt"
+        )
+        .populate(
+          "user",
+          "name email"
+        );
 
     res.status(201).json({
-      message: "Feedback submitted successfully",
+      success: true,
+      message:
+        "Booth feedback submitted successfully",
       feedback: populatedFeedback,
     });
-  } catch (error) {
-    console.error("Create booth feedback error:", error.message);
 
-    // Handle duplicate index error
+  } catch (error) {
+    console.error(
+      "Create booth feedback error:",
+      error.message
+    );
+
     if (error.code === 11000) {
       return res.status(400).json({
-        message: "You have already submitted feedback for this booth visit",
+        message:
+          "You have already submitted feedback for this booth visit",
+      });
+    }
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message: "Invalid booth visit ID",
       });
     }
 
@@ -109,80 +255,22 @@ const createBoothFeedback = async (req, res) => {
   }
 };
 
-// ==========================================
-// GET MY FEEDBACK
-// ATTENDEE
-// ==========================================
 
-const getMyFeedback = async (req, res) => {
-  try {
-    const feedback = await Feedback.find({
-      user: req.user._id,
-    })
-      .populate("booth", "boothNumber size location price status")
-      .populate("event", "title category location startDate endDate")
-      .populate("boothVisit", "visitedAt")
-      .sort({
-        createdAt: -1,
-      });
-
-    res.status(200).json({
-      count: feedback.length,
-      feedback,
-    });
-  } catch (error) {
-    console.error("Get my feedback error:", error.message);
-
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
-};
-
-// ==========================================
-// GET FEEDBACK BY ID
-// ATTENDEE
-// ==========================================
-
-const getFeedbackById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const feedback = await Feedback.findOne({
-      _id: id,
-      user: req.user._id,
-    })
-      .populate("booth", "boothNumber size location price status")
-      .populate("event", "title category location startDate endDate")
-      .populate("boothVisit", "visitedAt");
-
-    if (!feedback) {
-      return res.status(404).json({
-        message: "Feedback not found",
-      });
-    }
-
-    res.status(200).json({
-      feedback,
-    });
-  } catch (error) {
-    console.error("Get feedback by ID error:", error.message);
-
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
-};
-
-// ==========================================
+// ======================================================
 // CREATE EVENT FEEDBACK
 // ATTENDEE
-// ==========================================
+// ======================================================
 
 const createEventFeedback = async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { rating, comment } = req.body;
+
+    const {
+      rating,
+      reason,
+      reasonDetails,
+      comment,
+    } = req.body;
 
     const userId = req.user._id;
 
@@ -190,20 +278,18 @@ const createEventFeedback = async (req, res) => {
     // VALIDATE RATING
     // ==========================================
 
-    if (rating === undefined || rating === null) {
+    const ratingError = validateRating(rating);
+
+    if (ratingError) {
       return res.status(400).json({
-        message: "Rating is required",
+        message: ratingError,
       });
     }
 
-    if (rating < 1 || rating > 5) {
-      return res.status(400).json({
-        message: "Rating must be between 1 and 5",
-      });
-    }
+    const numericRating = Number(rating);
 
     // ==========================================
-    // CHECK EVENT EXISTS
+    // CHECK EVENT
     // ==========================================
 
     const event = await Event.findById(eventId);
@@ -215,78 +301,90 @@ const createEventFeedback = async (req, res) => {
     }
 
     // ==========================================
-    // CHECK ATTENDEE PARTICIPATED IN EVENT
+    // CHECK ATTENDANCE
     // ==========================================
 
-    const registration = await Registration.findOne({
-      attendee: userId,
-      event: eventId,
-      status: "attended",
-    });
+    const registration =
+      await Registration.findOne({
+        attendee: userId,
+        event: eventId,
+        status: "attended",
+      });
 
     if (!registration) {
       return res.status(403).json({
-        message: "You can only give feedback for an event you attended",
+        message:
+          "You can only give feedback for an event you attended",
       });
     }
 
     // ==========================================
-    // CHECK IF FEEDBACK ALREADY EXISTS
+    // CHECK EXISTING FEEDBACK
     // ==========================================
 
-    const existingFeedback = await Feedback.findOne({
-      user: userId,
-      event: eventId,
-      feedbackType: "event",
-    });
+    const existingFeedback =
+      await Feedback.findOne({
+        user: userId,
+        event: eventId,
+        feedbackType: "event",
+      });
 
     if (existingFeedback) {
       return res.status(400).json({
-        message: "You have already submitted feedback for this event",
+        message:
+          "You have already submitted feedback for this event",
         feedback: existingFeedback,
       });
     }
 
     // ==========================================
-    // CREATE EVENT FEEDBACK
+    // CREATE
     // ==========================================
 
     const feedback = await Feedback.create({
       user: userId,
       event: eventId,
       feedbackType: "event",
-      rating,
-      comment: comment || null,
+      rating: numericRating,
+      reason: cleanOptionalText(reason),
+      reasonDetails: cleanOptionalText(reasonDetails),
+      comment: cleanOptionalText(comment),
     });
 
     // ==========================================
-    // RETURN POPULATED FEEDBACK
+    // POPULATE
     // ==========================================
 
-    const populatedFeedback = await Feedback.findById(feedback._id)
-      .populate("event", "title category location startDate endDate")
-      .populate("user", "name email");
+    const populatedFeedback =
+      await Feedback.findById(feedback._id)
+        .populate(
+          "event",
+          "title category location startDate endDate"
+        )
+        .populate(
+          "user",
+          "name email"
+        );
 
     res.status(201).json({
-      message: "Event feedback submitted successfully",
+      success: true,
+      message:
+        "Event feedback submitted successfully",
       feedback: populatedFeedback,
     });
-  } catch (error) {
-    console.error("Create event feedback error:", error.message);
 
-    // ==========================================
-    // HANDLE DUPLICATE FEEDBACK
-    // ==========================================
+  } catch (error) {
+    console.error(
+      "Create event feedback error:",
+      error.message
+    );
 
     if (error.code === 11000) {
       return res.status(400).json({
-        message: "You have already submitted feedback for this event",
+        message:
+          "You have already submitted feedback for this event",
       });
     }
-
-    // ==========================================
-    // INVALID OBJECT ID
-    // ==========================================
 
     if (error.name === "CastError") {
       return res.status(400).json({
@@ -300,15 +398,22 @@ const createEventFeedback = async (req, res) => {
   }
 };
 
-// ==========================================
+
+// ======================================================
 // CREATE SESSION FEEDBACK
 // ATTENDEE
-// ==========================================
+// ======================================================
 
 const createSessionFeedback = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { rating, comment } = req.body;
+
+    const {
+      rating,
+      reason,
+      reasonDetails,
+      comment,
+    } = req.body;
 
     const userId = req.user._id;
 
@@ -316,23 +421,38 @@ const createSessionFeedback = async (req, res) => {
     // VALIDATE RATING
     // ==========================================
 
-    if (rating === undefined || rating === null) {
+    const ratingError = validateRating(rating);
+
+    if (ratingError) {
       return res.status(400).json({
-        message: "Rating is required",
+        message: ratingError,
       });
     }
 
-    if (rating < 1 || rating > 5) {
+    const numericRating = Number(rating);
+
+    // ==========================================
+    // VALIDATE LOW RATING REASON
+    // ==========================================
+
+    const reasonError = validateLowRatingReason(
+      "session",
+      numericRating,
+      reason
+    );
+
+    if (reasonError) {
       return res.status(400).json({
-        message: "Rating must be between 1 and 5",
+        message: reasonError,
       });
     }
 
     // ==========================================
-    // CHECK SESSION EXISTS
+    // CHECK SESSION
     // ==========================================
 
-    const session = await Session.findById(sessionId);
+    const session =
+      await Session.findById(sessionId);
 
     if (!session) {
       return res.status(404).json({
@@ -341,7 +461,7 @@ const createSessionFeedback = async (req, res) => {
     }
 
     // ==========================================
-    // CHECK ATTENDEE ATTENDED THE SESSION
+    // CHECK SESSION ATTENDANCE
     // ==========================================
 
     const sessionRegistration =
@@ -359,14 +479,15 @@ const createSessionFeedback = async (req, res) => {
     }
 
     // ==========================================
-    // CHECK IF FEEDBACK ALREADY EXISTS
+    // CHECK EXISTING FEEDBACK
     // ==========================================
 
-    const existingFeedback = await Feedback.findOne({
-      user: userId,
-      session: sessionId,
-      feedbackType: "session",
-    });
+    const existingFeedback =
+      await Feedback.findOne({
+        user: userId,
+        session: sessionId,
+        feedbackType: "session",
+      });
 
     if (existingFeedback) {
       return res.status(400).json({
@@ -377,7 +498,7 @@ const createSessionFeedback = async (req, res) => {
     }
 
     // ==========================================
-    // CREATE SESSION FEEDBACK
+    // CREATE
     // ==========================================
 
     const feedback = await Feedback.create({
@@ -385,12 +506,14 @@ const createSessionFeedback = async (req, res) => {
       event: session.event,
       session: sessionId,
       feedbackType: "session",
-      rating,
-      comment: comment || null,
+      rating: numericRating,
+      reason: cleanOptionalText(reason),
+      reasonDetails: cleanOptionalText(reasonDetails),
+      comment: cleanOptionalText(comment),
     });
 
     // ==========================================
-    // RETURN POPULATED FEEDBACK
+    // POPULATE
     // ==========================================
 
     const populatedFeedback =
@@ -409,7 +532,9 @@ const createSessionFeedback = async (req, res) => {
         );
 
     res.status(201).json({
-      message: "Session feedback submitted successfully",
+      success: true,
+      message:
+        "Session feedback submitted successfully",
       feedback: populatedFeedback,
     });
 
@@ -419,20 +544,12 @@ const createSessionFeedback = async (req, res) => {
       error.message
     );
 
-    // ==========================================
-    // HANDLE DUPLICATE FEEDBACK
-    // ==========================================
-
     if (error.code === 11000) {
       return res.status(400).json({
         message:
           "You have already submitted feedback for this session",
       });
     }
-
-    // ==========================================
-    // INVALID OBJECT ID
-    // ==========================================
 
     if (error.name === "CastError") {
       return res.status(400).json({
@@ -446,26 +563,241 @@ const createSessionFeedback = async (req, res) => {
   }
 };
 
-// ==========================================
-// UPDATE MY FEEDBACK
-// ATTENDEE
-// ==========================================
 
-const updateFeedback = async (req, res) => {
+// ======================================================
+// CREATE WEBSITE FEEDBACK
+// ATTENDEE
+// ======================================================
+
+const createWebsiteFeedback = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { rating, comment } = req.body;
+    const {
+      rating,
+      comment,
+    } = req.body;
 
     const userId = req.user._id;
 
     // ==========================================
-    // FIND FEEDBACK BELONGING TO CURRENT USER
+    // VALIDATE RATING
     // ==========================================
 
-    const feedback = await Feedback.findOne({
-      _id: id,
+    const ratingError = validateRating(rating);
+
+    if (ratingError) {
+      return res.status(400).json({
+        message: ratingError,
+      });
+    }
+
+    const numericRating = Number(rating);
+
+    // ==========================================
+    // CHECK EXISTING WEBSITE FEEDBACK
+    // ==========================================
+
+    const existingFeedback =
+      await Feedback.findOne({
+        user: userId,
+        feedbackType: "website",
+      });
+
+    if (existingFeedback) {
+      return res.status(400).json({
+        message:
+          "You have already submitted website feedback",
+        feedback: existingFeedback,
+      });
+    }
+
+    // ==========================================
+    // CREATE
+    // ==========================================
+
+    const feedback = await Feedback.create({
       user: userId,
+      event: null,
+      feedbackType: "website",
+      rating: numericRating,
+      comment: cleanOptionalText(comment),
     });
+
+    // ==========================================
+    // POPULATE
+    // ==========================================
+
+    const populatedFeedback =
+      await Feedback.findById(feedback._id)
+        .populate(
+          "user",
+          "name email"
+        );
+
+    res.status(201).json({
+      success: true,
+      message:
+        "Website feedback submitted successfully",
+      feedback: populatedFeedback,
+    });
+
+  } catch (error) {
+    console.error(
+      "Create website feedback error:",
+      error.message
+    );
+
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message:
+          "You have already submitted website feedback",
+      });
+    }
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+
+// ======================================================
+// GET MY FEEDBACK
+// ATTENDEE
+// ======================================================
+
+const getMyFeedback = async (req, res) => {
+  try {
+    const feedback =
+      await Feedback.find({
+        user: req.user._id,
+      })
+        .populate(
+          "booth",
+          "boothNumber size location price status"
+        )
+        .populate(
+          "event",
+          "title category location startDate endDate"
+        )
+        .populate(
+          "boothVisit",
+          "visitedAt"
+        )
+        .populate(
+          "session",
+          "title topic description speaker date startTime endTime location"
+        )
+        .sort({
+          createdAt: -1,
+        });
+
+    res.status(200).json({
+      success: true,
+      count: feedback.length,
+      feedback,
+    });
+
+  } catch (error) {
+    console.error(
+      "Get my feedback error:",
+      error.message
+    );
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+
+// ======================================================
+// GET FEEDBACK BY ID
+// ATTENDEE
+// ======================================================
+
+const getFeedbackById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const feedback =
+      await Feedback.findOne({
+        _id: id,
+        user: req.user._id,
+      })
+        .populate(
+          "booth",
+          "boothNumber size location price status"
+        )
+        .populate(
+          "event",
+          "title category location startDate endDate"
+        )
+        .populate(
+          "boothVisit",
+          "visitedAt"
+        )
+        .populate(
+          "session",
+          "title topic description speaker date startTime endTime location"
+        );
+
+    if (!feedback) {
+      return res.status(404).json({
+        message: "Feedback not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      feedback,
+    });
+
+  } catch (error) {
+    console.error(
+      "Get feedback by ID error:",
+      error.message
+    );
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message: "Invalid feedback ID",
+      });
+    }
+
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+
+// ======================================================
+// UPDATE MY FEEDBACK
+// ATTENDEE
+// ======================================================
+
+const updateFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      rating,
+      reason,
+      reasonDetails,
+      comment,
+    } = req.body;
+
+    const userId = req.user._id;
+
+    // ==========================================
+    // FIND USER'S FEEDBACK
+    // ==========================================
+
+    const feedback =
+      await Feedback.findOne({
+        _id: id,
+        user: userId,
+      });
 
     if (!feedback) {
       return res.status(404).json({
@@ -474,40 +806,91 @@ const updateFeedback = async (req, res) => {
     }
 
     // ==========================================
-    // VALIDATE RATING IF PROVIDED
+    // UPDATE RATING
     // ==========================================
 
+    let finalRating = feedback.rating;
+
     if (rating !== undefined) {
-      if (
-        typeof rating !== "number" ||
-        rating < 1 ||
-        rating > 5
-      ) {
+      const ratingError =
+        validateRating(rating);
+
+      if (ratingError) {
         return res.status(400).json({
-          message: "Rating must be a number between 1 and 5",
+          message: ratingError,
         });
       }
 
-      feedback.rating = rating;
+      finalRating = Number(rating);
+      feedback.rating = finalRating;
     }
 
     // ==========================================
-    // UPDATE COMMENT IF PROVIDED
+    // UPDATE REASON
+    // ==========================================
+
+    let finalReason =
+      reason !== undefined
+        ? cleanOptionalText(reason)
+        : feedback.reason;
+
+    if (
+      feedback.feedbackType === "booth" ||
+      feedback.feedbackType === "session"
+    ) {
+      const reasonError =
+        validateLowRatingReason(
+          feedback.feedbackType,
+          finalRating,
+          finalReason
+        );
+
+      if (reasonError) {
+        return res.status(400).json({
+          message: reasonError,
+        });
+      }
+    }
+
+    if (reason !== undefined) {
+      feedback.reason = finalReason;
+    }
+
+    // ==========================================
+    // UPDATE REASON DETAILS
+    // ==========================================
+
+    if (reasonDetails !== undefined) {
+      feedback.reasonDetails =
+        cleanOptionalText(reasonDetails);
+    }
+
+    // ==========================================
+    // UPDATE COMMENT
     // ==========================================
 
     if (comment !== undefined) {
       feedback.comment =
-        comment === "" ? null : comment;
+        cleanOptionalText(comment);
     }
 
     // ==========================================
-    // SAVE CHANGES
+    // CLEAN REASON WHEN RATING IS 3+
     // ==========================================
+
+    if (
+      finalRating >= 3 &&
+      (feedback.feedbackType === "booth" ||
+        feedback.feedbackType === "session")
+    ) {
+      feedback.reason = null;
+      feedback.reasonDetails = null;
+    }
 
     await feedback.save();
 
     // ==========================================
-    // RETURN POPULATED FEEDBACK
+    // POPULATE
     // ==========================================
 
     const populatedFeedback =
@@ -527,10 +910,16 @@ const updateFeedback = async (req, res) => {
         .populate(
           "session",
           "title topic description speaker date startTime endTime location"
+        )
+        .populate(
+          "user",
+          "name email"
         );
 
     res.status(200).json({
-      message: "Feedback updated successfully",
+      success: true,
+      message:
+        "Feedback updated successfully",
       feedback: populatedFeedback,
     });
 
@@ -552,22 +941,25 @@ const updateFeedback = async (req, res) => {
   }
 };
 
-// ==========================================
+
+// ======================================================
 // DELETE FEEDBACK
 // ADMIN / ORGANIZER
-// ==========================================
+// ======================================================
 
 const deleteFeedback = async (req, res) => {
   try {
     const { id } = req.params;
 
     const userId = req.user._id;
+    const userRole = req.user.role;
 
     // ==========================================
     // FIND FEEDBACK
     // ==========================================
 
-    const feedback = await Feedback.findById(id);
+    const feedback =
+      await Feedback.findById(id);
 
     if (!feedback) {
       return res.status(404).json({
@@ -576,41 +968,73 @@ const deleteFeedback = async (req, res) => {
     }
 
     // ==========================================
-    // FIND EVENT
+    // ADMIN CAN DELETE ANY FEEDBACK
     // ==========================================
 
-    const event = await Event.findById(
-      feedback.event
-    );
+    if (userRole === "admin") {
+      await Feedback.findByIdAndDelete(id);
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Feedback deleted successfully",
+      });
+    }
+
+    // ==========================================
+    // WEBSITE FEEDBACK
+    //
+    // Organizer cannot delete website feedback.
+    // ==========================================
+
+    if (feedback.feedbackType === "website") {
+      return res.status(403).json({
+        message:
+          "Only an admin can delete website feedback",
+      });
+    }
+
+    // ==========================================
+    // FIND ASSOCIATED EVENT
+    // ==========================================
+
+    const event =
+      await Event.findById(feedback.event);
 
     if (!event) {
       return res.status(404).json({
-        message: "Associated event not found",
-      });
-    }
-
-    // ==========================================
-    // CHECK EVENT ORGANIZER
-    // ==========================================
-
-    if (
-      event.organizer.toString() !==
-      userId.toString()
-    ) {
-      return res.status(403).json({
         message:
-          "You are not authorized to delete feedback for this event",
+          "Associated event not found",
       });
     }
 
     // ==========================================
-    // DELETE FEEDBACK
+    // ORGANIZER CAN ONLY DELETE THEIR OWN
+    // EVENT'S FEEDBACK
+    // ==========================================
+
+    if (userRole === "organizer") {
+      if (
+        event.organizer.toString() !==
+        userId.toString()
+      ) {
+        return res.status(403).json({
+          message:
+            "You are not authorized to delete feedback for this event",
+        });
+      }
+    }
+
+    // ==========================================
+    // DELETE
     // ==========================================
 
     await Feedback.findByIdAndDelete(id);
 
     res.status(200).json({
-      message: "Feedback deleted successfully",
+      success: true,
+      message:
+        "Feedback deleted successfully",
     });
 
   } catch (error) {
@@ -631,10 +1055,12 @@ const deleteFeedback = async (req, res) => {
   }
 };
 
+
 export {
   createBoothFeedback,
   createEventFeedback,
   createSessionFeedback,
+  createWebsiteFeedback,
   getMyFeedback,
   getFeedbackById,
   updateFeedback,

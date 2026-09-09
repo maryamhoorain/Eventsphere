@@ -27,6 +27,7 @@ import profileRoutes from "./src/routes/profileRoutes.mjs";
 import chatRoutes from "./src/routes/chatRoutes.mjs";
 import initializeChatSocket from "./src/sockets/chatSocket.mjs";
 import { setSocketIO } from "./src/config/socket.mjs";
+import aiRoutes from "./src/routes/aiRoutes.mjs";
 
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
@@ -69,6 +70,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.get("/", (req, res) => {
   res.json({
