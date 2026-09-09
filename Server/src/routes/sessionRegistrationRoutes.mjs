@@ -1,70 +1,76 @@
 import express from "express";
 
 import {
-    registerForSession,
-    getMySessionRegistrations,
-    getSessionRegistrationById,
-    cancelSessionRegistration,
-    getSessionRegistrationStatus
+  registerForSession,
+  getMySessionRegistrations,
+  getSessionRegistrationById,
+  cancelSessionRegistration,
+  getSessionRegistrationStatus,
 } from "../controllers/sessionRegistrationController.mjs";
 
-import authMiddleware
-    from "../middleware/authMiddleware.mjs";
-
-import authorizeRoles
-    from "../middleware/roleMiddleware.mjs";
-
+import authMiddleware from "../middleware/authMiddleware.mjs";
+import authorizeRoles from "../middleware/roleMiddleware.mjs";
 
 const router = express.Router();
 
+// ======================================================
+// REGISTER FOR SESSION
+//
+// ATTENDEE
+//
+// If event registration does not exist,
+// the backend automatically creates it.
+// ======================================================
 
-// ==========================================
-// ATTENDEE SESSION REGISTRATION
-// ==========================================
-
-// Register for session
 router.post(
-    "/:sessionId",
-    authMiddleware,
-    authorizeRoles("attendee"),
-    registerForSession
+  "/session/:sessionId",
+  authMiddleware,
+  authorizeRoles("attendee"),
+  registerForSession
 );
 
+// ======================================================
+// GET MY SESSION REGISTRATIONS
+// ======================================================
 
-// Get my session registrations
 router.get(
-    "/my",
-    authMiddleware,
-    authorizeRoles("attendee"),
-    getMySessionRegistrations
+  "/my",
+  authMiddleware,
+  authorizeRoles("attendee"),
+  getMySessionRegistrations
 );
 
+// ======================================================
+// GET SESSION REGISTRATION BY ID
+// ======================================================
 
-// Check registration status
 router.get(
-    "/session/:sessionId/status",
-    authMiddleware,
-    authorizeRoles("attendee"),
-    getSessionRegistrationStatus
+  "/:id",
+  authMiddleware,
+  authorizeRoles("attendee"),
+  getSessionRegistrationById
 );
 
+// ======================================================
+// CANCEL SESSION REGISTRATION
+// ======================================================
 
-// Get registration details
+router.put(
+  "/:id/cancel",
+  authMiddleware,
+  authorizeRoles("attendee"),
+  cancelSessionRegistration
+);
+
+// ======================================================
+// SESSION REGISTRATION STATUS
+// ======================================================
+
 router.get(
-    "/:id",
-    authMiddleware,
-    authorizeRoles("attendee"),
-    getSessionRegistrationById
+  "/status/:sessionId",
+  authMiddleware,
+  authorizeRoles("attendee"),
+  getSessionRegistrationStatus
 );
-
-
-// Cancel session registration
-router.patch(
-    "/:id/cancel",
-    authMiddleware,
-    authorizeRoles("attendee"),
-    cancelSessionRegistration
-);
-
 
 export default router;

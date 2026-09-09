@@ -1,33 +1,46 @@
 import SessionRegistration from "../models/SessionRegistration.mjs";
 
 import Session from "../models/Session.mjs";
-
 import Registration from "../models/Registration.mjs";
-
 import Event from "../models/Event.mjs";
 
 import createNotification from "../utils/createNotification.mjs";
 
 // ==========================================
 // REGISTER FOR SESSION
-// ATTENDEE
+//
+// This endpoint is kept for convenience.
+//
+// Internally:
+// Session → Event Registration
+// Session → Session Registration
 // ==========================================
 
-const registerForSession = async (req, res) => {
+const registerForSession = async (
+  req,
+  res
+) => {
   try {
-    const { sessionId } = req.params;
+    const { sessionId } =
+      req.params;
 
-    const attendeeId = req.user._id;
+    const attendeeId =
+      req.user._id;
 
     // ==========================================
     // FIND SESSION
     // ==========================================
 
-    const session = await Session.findById(sessionId);
+    const session =
+      await Session.findOne({
+        _id: sessionId,
+        isActive: true,
+      });
 
     if (!session) {
       return res.status(404).json({
-        message: "Session not found",
+        message:
+          "Session not found",
       });
     }
 
@@ -35,111 +48,167 @@ const registerForSession = async (req, res) => {
     // FIND EVENT
     // ==========================================
 
-    const event = await Event.findOne({
-      _id: session.event,
-      status: "published",
-      isPublished: true,
-    });
+    const event =
+      await Event.findById(
+        session.event
+      );
 
     if (!event) {
       return res.status(404).json({
-        message: "Published event not found",
+        message:
+          "Associated event not found",
       });
     }
-    console.log("========== SESSION REGISTRATION DEBUG ==========");
-    console.log("Logged-in attendee:", req.user._id);
-    console.log("Session ID:", session._id);
-    console.log("Session event:", session.event);
 
     // ==========================================
-    // CHECK EVENT REGISTRATION
+    // EVENT MUST BE PUBLISHED
     // ==========================================
-    const eventRegistration = await Registration.findOne({
-      attendee: req.user._id,
-      event: session.event,
-      status: "registered",
-    });
 
-    console.log("Event registration:", eventRegistration);
-    console.log("===============================================");
-
-    if (!eventRegistration) {
+    if (
+      event.status !== "published" ||
+      !event.isPublished
+    ) {
       return res.status(400).json({
         message:
-          "You must be registered for this event before registering for a session",
+          "This event is not available for registration",
       });
     }
 
     // ==========================================
-    // SESSION MUST NOT HAVE STARTED
+    // REGISTRATION DEADLINE
     // ==========================================
 
-    const sessionDate = new Date(session.date);
+    if (
+      event.registrationDeadline &&
+      new Date() >
+        new Date(
+          event.registrationDeadline
+        )
+    ) {
+      return res.status(400).json({
+        message:
+          "Registration deadline has passed",
+      });
+    }
 
-    const sessionStart = session.startTime.split(":");
+    // ==========================================
+    // SESSION START CHECK
+    // ==========================================
+
+    const sessionDate =
+      new Date(session.date);
+
+    const [hours, minutes] =
+      session.startTime
+        .split(":")
+        .map(Number);
 
     sessionDate.setHours(
-      Number(sessionStart[0]),
-      Number(sessionStart[1]),
+      hours,
+      minutes,
       0,
-      0,
+      0
     );
 
-    if (new Date() >= sessionDate) {
+    if (
+      new Date() >= sessionDate
+    ) {
       return res.status(400).json({
-        message: "You cannot register for a session that has already started",
+        message:
+          "You cannot register for a session that has already started",
       });
     }
 
     // ==========================================
-    // CHECK EXISTING REGISTRATION
+    // EVENT REGISTRATION
     // ==========================================
 
-    const existingRegistration = await SessionRegistration.findOne({
-      attendee: attendeeId,
-      session: sessionId,
-    });
+    let eventRegistration =
+      await Registration.findOne({
+        attendee: attendeeId,
+        event: event._id,
+      });
 
-    if (existingRegistration) {
-      // Restore cancelled registration
-      if (existingRegistration.status === "cancelled") {
-        existingRegistration.status = "registered";
+    // ==========================================
+    // CREATE EVENT REGISTRATION IF NEEDED
+    // ==========================================
 
-        existingRegistration.registeredAt = new Date();
+    if (!eventRegistration) {
+      // Check event capacity
+      if (event.capacity) {
+        const registeredCount =
+          await Registration.countDocuments(
+            {
+              event: event._id,
+              status: "registered",
+            }
+          );
 
-        existingRegistration.cancelledAt = null;
-
-        existingRegistration.attendedAt = null;
-
-        await existingRegistration.save();
-
-        await createNotification({
-          recipient: attendeeId,
-
-          title: "Session Registration Confirmed",
-
-          message: `You have successfully registered again for the session "${session.title}".`,
-
-          type: "session",
-
-          relatedEvent: event._id,
-        });
-
-        return res.status(200).json({
-          message: "Session registration restored successfully",
-
-          registration: existingRegistration,
-        });
+        if (
+          registeredCount >=
+          event.capacity
+        ) {
+          return res.status(400).json({
+            message:
+              "This event is full",
+          });
+        }
       }
 
-      if (existingRegistration.status === "attended") {
-        return res.status(400).json({
-          message: "You have already attended this session",
-        });
-      }
+      const ticketCode =
+        `EVT-${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 8)
+          .toUpperCase()}`;
 
+      eventRegistration =
+        await Registration.create({
+          attendee: attendeeId,
+          event: event._id,
+          status: "registered",
+          ticketCode,
+        });
+
+      await createNotification({
+        recipient: attendeeId,
+
+        title:
+          "Event Registration",
+
+        message: `You have automatically been registered for ${event.title} because you registered for the session "${session.title}".`,
+
+        type: "registration",
+
+        relatedEvent:
+          event._id,
+      });
+    } else if (
+      eventRegistration.status ===
+      "cancelled"
+    ) {
+      eventRegistration.status =
+        "registered";
+
+      eventRegistration.registrationDate =
+        new Date();
+
+      eventRegistration.checkedInAt =
+        null;
+
+      eventRegistration.ticketCode =
+        `EVT-${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 8)
+          .toUpperCase()}`;
+
+      await eventRegistration.save();
+    } else if (
+      eventRegistration.status ===
+      "attended"
+    ) {
       return res.status(400).json({
-        message: "You are already registered for this session",
+        message:
+          "You have already attended this event",
       });
     }
 
@@ -148,31 +217,97 @@ const registerForSession = async (req, res) => {
     // ==========================================
 
     if (session.capacity) {
-      const registeredCount = await SessionRegistration.countDocuments({
-        session: sessionId,
-        status: "registered",
-      });
+      const registeredCount =
+        await SessionRegistration.countDocuments(
+          {
+            session: session._id,
+            status: "registered",
+          }
+        );
 
-      if (registeredCount >= session.capacity) {
+      if (
+        registeredCount >=
+        session.capacity
+      ) {
         return res.status(400).json({
-          message: "This session is full",
+          message:
+            "This session is full",
         });
       }
     }
 
     // ==========================================
-    // CREATE REGISTRATION
+    // CHECK EXISTING SESSION REGISTRATION
     // ==========================================
 
-    const registration = await SessionRegistration.create({
-      attendee: attendeeId,
+    let sessionRegistration =
+      await SessionRegistration.findOne(
+        {
+          attendee: attendeeId,
+          session: session._id,
+        }
+      );
 
-      session: sessionId,
+    if (sessionRegistration) {
+      if (
+        sessionRegistration.status ===
+        "cancelled"
+      ) {
+        sessionRegistration.status =
+          "registered";
 
-      event: event._id,
+        sessionRegistration.registeredAt =
+          new Date();
 
-      status: "registered",
-    });
+        sessionRegistration.cancelledAt =
+          null;
+
+        sessionRegistration.attendedAt =
+          null;
+
+        await sessionRegistration.save();
+
+        return res.status(200).json({
+          message:
+            "Session registration restored successfully",
+
+          eventRegistration,
+
+          registration:
+            sessionRegistration,
+        });
+      }
+
+      if (
+        sessionRegistration.status ===
+        "attended"
+      ) {
+        return res.status(400).json({
+          message:
+            "You have already attended this session",
+        });
+      }
+
+      return res.status(400).json({
+        message:
+          "You are already registered for this session",
+      });
+    }
+
+    // ==========================================
+    // CREATE SESSION REGISTRATION
+    // ==========================================
+
+    sessionRegistration =
+      await SessionRegistration.create({
+        attendee: attendeeId,
+
+        session: session._id,
+
+        event: event._id,
+
+        status: "registered",
+      });
 
     // ==========================================
     // NOTIFICATION
@@ -181,26 +316,51 @@ const registerForSession = async (req, res) => {
     await createNotification({
       recipient: attendeeId,
 
-      title: "Session Registration Confirmed",
+      title:
+        "Session Registration Confirmed",
 
       message: `You have successfully registered for the session "${session.title}".`,
 
       type: "session",
 
-      relatedEvent: event._id,
+      relatedEvent:
+        event._id,
     });
-
-    // ==========================================
-    // RESPONSE
-    // ==========================================
 
     res.status(201).json({
-      message: "Successfully registered for the session",
+      success: true,
 
-      registration,
+      message:
+        "Successfully registered for the session. Event registration was automatically created.",
+
+      eventRegistration,
+
+      registration:
+        sessionRegistration,
     });
   } catch (error) {
-    console.error("Session registration error:", error.message);
+    console.error(
+      "Session registration error:",
+      error.message
+    );
+
+    if (
+      error.code === 11000
+    ) {
+      return res.status(400).json({
+        message:
+          "You are already registered",
+      });
+    }
+
+    if (
+      error.name === "CastError"
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid session ID",
+      });
+    }
 
     res.status(500).json({
       message: "Server error",
@@ -210,201 +370,290 @@ const registerForSession = async (req, res) => {
 
 // ==========================================
 // GET MY SESSION REGISTRATIONS
-// ATTENDEE
 // ==========================================
 
-const getMySessionRegistrations = async (req, res) => {
-  try {
-    const registrations = await SessionRegistration.find({
-      attendee: req.user._id,
-    })
-      .populate(
-        "session",
-        "title description speaker date startTime endTime location capacity",
-      )
-      .populate(
-        "event",
-        "title category location startDate endDate bannerImage",
-      )
-      .sort({
-        registeredAt: -1,
+const getMySessionRegistrations =
+  async (req, res) => {
+    try {
+      const registrations =
+        await SessionRegistration.find(
+          {
+            attendee:
+              req.user._id,
+          }
+        )
+          .populate(
+            "session",
+            "title topic description speaker date startTime endTime location capacity"
+          )
+          .populate(
+            "event",
+            "title category location startDate endDate bannerImage"
+          )
+          .sort({
+            registeredAt: -1,
+          });
+
+      res.status(200).json({
+        success: true,
+
+        count:
+          registrations.length,
+
+        registrations,
       });
+    } catch (error) {
+      console.error(
+        "Get session registrations error:",
+        error.message
+      );
 
-    res.status(200).json({
-      count: registrations.length,
-
-      registrations,
-    });
-  } catch (error) {
-    console.error("Get session registrations error:", error.message);
-
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
-};
+      res.status(500).json({
+        message: "Server error",
+      });
+    }
+  };
 
 // ==========================================
 // GET SESSION REGISTRATION BY ID
-// ATTENDEE
 // ==========================================
 
-const getSessionRegistrationById = async (req, res) => {
-  try {
-    const { id } = req.params;
+const getSessionRegistrationById =
+  async (req, res) => {
+    try {
+      const { id } =
+        req.params;
 
-    const registration = await SessionRegistration.findOne({
-      _id: id,
+      const registration =
+        await SessionRegistration.findOne(
+          {
+            _id: id,
+            attendee:
+              req.user._id,
+          }
+        )
+          .populate(
+            "session",
+            "title topic description speaker date startTime endTime location capacity"
+          )
+          .populate(
+            "event",
+            "title category location startDate endDate bannerImage"
+          );
 
-      attendee: req.user._id,
-    })
-      .populate(
-        "session",
-        "title description speaker date startTime endTime location capacity",
-      )
-      .populate(
-        "event",
-        "title category location startDate endDate bannerImage",
+      if (!registration) {
+        return res.status(404).json({
+          message:
+            "Session registration not found",
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        registration,
+      });
+    } catch (error) {
+      console.error(
+        "Get session registration error:",
+        error.message
       );
 
-    if (!registration) {
-      return res.status(404).json({
-        message: "Session registration not found",
+      if (
+        error.name === "CastError"
+      ) {
+        return res.status(400).json({
+          message:
+            "Invalid session registration ID",
+        });
+      }
+
+      res.status(500).json({
+        message: "Server error",
       });
     }
-
-    res.status(200).json({
-      registration,
-    });
-  } catch (error) {
-    console.error("Get session registration error:", error.message);
-
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
-};
+  };
 
 // ==========================================
 // CANCEL SESSION REGISTRATION
-// ATTENDEE
 // ==========================================
 
-const cancelSessionRegistration = async (req, res) => {
-  try {
-    const { id } = req.params;
+const cancelSessionRegistration =
+  async (req, res) => {
+    try {
+      const { id } =
+        req.params;
 
-    const registration = await SessionRegistration.findOne({
-      _id: id,
-      attendee: req.user._id,
-    })
-      .populate("session")
-      .populate("event");
+      const registration =
+        await SessionRegistration.findOne(
+          {
+            _id: id,
+            attendee:
+              req.user._id,
+          }
+        )
+          .populate("session")
+          .populate("event");
 
-    if (!registration) {
-      return res.status(404).json({
-        message: "Session registration not found",
+      if (!registration) {
+        return res.status(404).json({
+          message:
+            "Session registration not found",
+        });
+      }
+
+      if (
+        registration.status ===
+        "cancelled"
+      ) {
+        return res.status(400).json({
+          message:
+            "Session registration is already cancelled",
+        });
+      }
+
+      if (
+        registration.status ===
+        "attended"
+      ) {
+        return res.status(400).json({
+          message:
+            "An attended session cannot be cancelled",
+        });
+      }
+
+      // ==========================================
+      // CHECK SESSION START
+      // ==========================================
+
+      const session =
+        registration.session;
+
+      const sessionDate =
+        new Date(session.date);
+
+      const [hours, minutes] =
+        session.startTime
+          .split(":")
+          .map(Number);
+
+      sessionDate.setHours(
+        hours,
+        minutes,
+        0,
+        0
+      );
+
+      if (
+        new Date() >=
+        sessionDate
+      ) {
+        return res.status(400).json({
+          message:
+            "Session registration cannot be cancelled after the session has started",
+        });
+      }
+
+      // ==========================================
+      // CANCEL
+      // ==========================================
+
+      registration.status =
+        "cancelled";
+
+      registration.cancelledAt =
+        new Date();
+
+      registration.attendedAt =
+        null;
+
+      await registration.save();
+
+      // ==========================================
+      // NOTIFICATION
+      // ==========================================
+
+      await createNotification({
+        recipient:
+          req.user._id,
+
+        title:
+          "Session Registration Cancelled",
+
+        message: `Your registration for the session "${session.title}" has been cancelled successfully.`,
+
+        type: "session",
+
+        relatedEvent:
+          registration.event._id,
       });
-    }
 
-    if (registration.status === "cancelled") {
-      return res.status(400).json({
-        message: "Session registration is already cancelled",
-      });
-    }
+      res.status(200).json({
+        success: true,
 
-    if (registration.status === "attended") {
-      return res.status(400).json({
-        message: "An attended session cannot be cancelled",
-      });
-    }
-
-    // ==========================================
-    // CHECK SESSION START
-    // ==========================================
-
-    const session = registration.session;
-
-    const sessionDate = new Date(session.date);
-
-    const sessionStart = session.startTime.split(":");
-
-    sessionDate.setHours(
-      Number(sessionStart[0]),
-      Number(sessionStart[1]),
-      0,
-      0,
-    );
-
-    if (new Date() >= sessionDate) {
-      return res.status(400).json({
         message:
-          "Session registration cannot be cancelled after the session has started",
+          "Session registration cancelled successfully",
+
+        registration,
+      });
+    } catch (error) {
+      console.error(
+        "Cancel session registration error:",
+        error.message
+      );
+
+      res.status(500).json({
+        message: "Server error",
       });
     }
-
-    registration.status = "cancelled";
-
-    registration.cancelledAt = new Date();
-
-    await registration.save();
-
-    await createNotification({
-      recipient: req.user._id,
-
-      title: "Session Registration Cancelled",
-
-      message: `Your registration for the session "${session.title}" has been cancelled successfully.`,
-
-      type: "session",
-
-      relatedEvent: registration.event._id,
-    });
-    
-    res.status(200).json({
-      message: "Session registration cancelled successfully",
-
-      registration,
-    });
-  } catch (error) {
-    console.error("Cancel session registration error:", error.message);
-
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
-};
+  };
 
 // ==========================================
 // CHECK SESSION REGISTRATION STATUS
-// ATTENDEE
 // ==========================================
 
-const getSessionRegistrationStatus = async (req, res) => {
-  try {
-    const { sessionId } = req.params;
+const getSessionRegistrationStatus =
+  async (req, res) => {
+    try {
+      const { sessionId } =
+        req.params;
 
-    const registration = await SessionRegistration.findOne({
-      attendee: req.user._id,
+      const registration =
+        await SessionRegistration.findOne(
+          {
+            attendee:
+              req.user._id,
 
-      session: sessionId,
-    });
+            session:
+              sessionId,
+          }
+        );
 
-    res.status(200).json({
-      registered: registration?.status === "registered",
+      res.status(200).json({
+        success: true,
 
-      status: registration ? registration.status : null,
+        registered:
+          registration?.status ===
+          "registered",
 
-      registration: registration || null,
-    });
-  } catch (error) {
-    console.error("Session registration status error:", error.message);
+        status:
+          registration
+            ? registration.status
+            : null,
 
-    res.status(500).json({
-      message: "Server error",
-    });
-  }
-};
+        registration:
+          registration || null,
+      });
+    } catch (error) {
+      console.error(
+        "Session registration status error:",
+        error.message
+      );
+
+      res.status(500).json({
+        message: "Server error",
+      });
+    }
+  };
 
 export {
   registerForSession,
