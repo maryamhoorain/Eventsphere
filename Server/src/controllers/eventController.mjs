@@ -1,5 +1,13 @@
 import Event from "../models/Event.mjs";
 import uploadToCloudinary from "../utils/uploadToCloudinary.mjs";
+import authorizeEventAccess, {
+  handleEventAccessError,
+} from "../utils/authorizeEventAccess.mjs";
+
+// ==========================================
+// CREATE EVENT
+// ADMIN / ORGANIZER
+// ==========================================
 
 const createEvent = async (req, res) => {
   try {
@@ -39,12 +47,11 @@ const createEvent = async (req, res) => {
 
     let bannerImage = null;
 
-    // Upload image if provided
     if (req.file) {
       const uploadedImage = await uploadToCloudinary(req.file.buffer);
-
       bannerImage = uploadedImage.secure_url;
     }
+
     let eventTags = tags;
 
     if (typeof tags === "string") {
@@ -65,7 +72,7 @@ const createEvent = async (req, res) => {
       registrationDeadline,
       bannerImage,
       capacity,
-      tags,
+      tags: eventTags,
       status: "draft",
       isPublished: false,
     });
@@ -76,194 +83,148 @@ const createEvent = async (req, res) => {
     });
   } catch (error) {
     console.error("Create event error:", error.message);
-
     res.status(500).json({
       message: "Server error",
     });
   }
 };
 
+// ==========================================
+// GET ALL PUBLISHED EVENTS
+// PUBLIC
+// ==========================================
+
 const getAllEvents = async (req, res) => {
-    try {
-        const {
-            search,
-            category,
-            city,
-            upcoming,
-            sort = "date",
-            page = 1,
-            limit = 10
-        } = req.query;
+  try {
+    const {
+      search,
+      category,
+      city,
+      upcoming,
+      sort = "date",
+      page = 1,
+      limit = 10,
+    } = req.query;
 
-        const query = {
-            status: "published",
-            isPublished: true
-        };
+    const query = {
+      status: "published",
+      isPublished: true,
+    };
 
-        // ==============================
-        // SEARCH
-        // ==============================
-
-        if (search) {
-            query.$or = [
-                {
-                    title: {
-                        $regex: search,
-                        $options: "i"
-                    }
-                },
-                {
-                    description: {
-                        $regex: search,
-                        $options: "i"
-                    }
-                },
-                {
-                    category: {
-                        $regex: search,
-                        $options: "i"
-                    }
-                },
-                {
-                    tags: {
-                        $regex: search,
-                        $options: "i"
-                    }
-                }
-            ];
-        }
-
-        // ==============================
-        // CATEGORY
-        // ==============================
-
-        if (category) {
-            query.category = {
-                $regex: `^${category}$`,
-                $options: "i"
-            };
-        }
-
-        // ==============================
-        // CITY
-        // ==============================
-
-        if (city) {
-            query["location.city"] = {
-                $regex: `^${city}$`,
-                $options: "i"
-            };
-        }
-
-        // ==============================
-        // UPCOMING EVENTS
-        // ==============================
-
-        if (upcoming === "true") {
-            query.startDate = {
-                $gte: new Date()
-            };
-        }
-
-        // ==============================
-        // PAGINATION
-        // ==============================
-
-        const pageNumber = Math.max(
-            parseInt(page) || 1,
-            1
-        );
-
-        const limitNumber = Math.min(
-            Math.max(parseInt(limit) || 10, 1),
-            50
-        );
-
-        const skip =
-            (pageNumber - 1) * limitNumber;
-
-        // ==============================
-        // SORTING
-        // ==============================
-
-        let sortOption = {};
-
-        switch (sort) {
-
-            case "latest":
-                sortOption = {
-                    createdAt: -1
-                };
-                break;
-
-            case "oldest":
-                sortOption = {
-                    createdAt: 1
-                };
-                break;
-
-            case "date":
-            default:
-                sortOption = {
-                    startDate: 1
-                };
-                break;
-        }
-
-        // ==============================
-        // FETCH EVENTS
-        // ==============================
-
-        const [events, totalEvents] =
-            await Promise.all([
-                Event.find(query)
-                    .populate(
-                        "organizer",
-                        "name email"
-                    )
-                    .sort(sortOption)
-                    .skip(skip)
-                    .limit(limitNumber),
-
-                Event.countDocuments(query)
-            ]);
-
-        const totalPages =
-            Math.ceil(
-                totalEvents / limitNumber
-            );
-
-        res.status(200).json({
-
-            count: events.length,
-
-            totalEvents,
-
-            pagination: {
-                currentPage: pageNumber,
-                totalPages,
-                limit: limitNumber,
-                hasNextPage:
-                    pageNumber < totalPages,
-                hasPreviousPage:
-                    pageNumber > 1
-            },
-
-            events
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Get events error:",
-            error.message
-        );
-
-        res.status(500).json({
-            message: "Server error"
-        });
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+        { tags: { $regex: search, $options: "i" } },
+      ];
     }
+
+    if (category) {
+      query.category = {
+        $regex: `^${category}$`,
+        $options: "i",
+      };
+    }
+
+    if (city) {
+      query["location.city"] = {
+        $regex: `^${city}$`,
+        $options: "i",
+      };
+    }
+
+    if (upcoming === "true") {
+      query.startDate = {
+        $gte: new Date(),
+      };
+    }
+
+    const pageNumber = Math.max(parseInt(page) || 1, 1);
+    const limitNumber = Math.min(Math.max(parseInt(limit) || 10, 1), 50);
+    const skip = (pageNumber - 1) * limitNumber;
+
+    let sortOption = {};
+
+    switch (sort) {
+      case "latest":
+        sortOption = { createdAt: -1 };
+        break;
+      case "oldest":
+        sortOption = { createdAt: 1 };
+        break;
+      case "date":
+      default:
+        sortOption = { startDate: 1 };
+        break;
+    }
+
+    const [events, totalEvents] = await Promise.all([
+      Event.find(query)
+        .populate("organizer", "name email")
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limitNumber),
+      Event.countDocuments(query),
+    ]);
+
+    const totalPages = Math.ceil(totalEvents / limitNumber);
+
+    res.status(200).json({
+      count: events.length,
+      totalEvents,
+      pagination: {
+        currentPage: pageNumber,
+        totalPages,
+        limit: limitNumber,
+        hasNextPage: pageNumber < totalPages,
+        hasPreviousPage: pageNumber > 1,
+      },
+      events,
+    });
+  } catch (error) {
+    console.error("Get events error:", error.message);
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
 };
+
+// ==========================================
+// GET MY / MANAGED EVENTS
+// ADMIN: all events
+// ORGANIZER: own events including drafts
+// ==========================================
+
+const getManagedEvents = async (req, res) => {
+  try {
+    const query = {};
+
+    if (req.user.role === "organizer") {
+      query.organizer = req.user._id;
+    }
+
+    const events = await Event.find(query)
+      .populate("organizer", "name email")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      count: events.length,
+      events,
+    });
+  } catch (error) {
+    console.error("Get managed events error:", error.message);
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+// ==========================================
+// GET EVENT BY ID
+// PUBLIC — published only
+// ==========================================
+
 const getEventById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -285,6 +246,37 @@ const getEventById = async (req, res) => {
     });
   } catch (error) {
     console.error("Get event error:", error.message);
+    res.status(500).json({
+      message: "Server error",
+    });
+  }
+};
+
+// ==========================================
+// GET MANAGED EVENT BY ID
+// ADMIN / ORGANIZER — includes drafts
+// ==========================================
+
+const getManagedEventById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const event = await authorizeEventAccess(req.user, id);
+
+    const populated = await Event.findById(event._id).populate(
+      "organizer",
+      "name email"
+    );
+
+    res.status(200).json({
+      event: populated,
+    });
+  } catch (error) {
+    console.error("Get managed event error:", error.message);
+
+    if (handleEventAccessError(error, res, "view")) {
+      return;
+    }
 
     res.status(500).json({
       message: "Server error",
@@ -292,17 +284,16 @@ const getEventById = async (req, res) => {
   }
 };
 
+// ==========================================
+// PUBLISH EVENT
+// ADMIN / ORGANIZER
+// ==========================================
+
 const publishEvent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const event = await Event.findById(id);
-
-    if (!event) {
-      return res.status(404).json({
-        message: "Event not found",
-      });
-    }
+    const event = await authorizeEventAccess(req.user, id);
 
     if (event.status !== "draft") {
       return res.status(400).json({
@@ -322,30 +313,26 @@ const publishEvent = async (req, res) => {
   } catch (error) {
     console.error("Publish event error:", error.message);
 
+    if (handleEventAccessError(error, res, "publish")) {
+      return;
+    }
+
     res.status(500).json({
       message: "Server error",
     });
   }
 };
 
+// ==========================================
+// UPDATE EVENT
+// ADMIN / ORGANIZER
+// ==========================================
+
 const updateEvent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const event = await Event.findById(id);
-
-    if (!event) {
-      return res.status(404).json({
-        message: "Event not found",
-      });
-    }
-
-    // Only the event organizer can update it
-    if (event.organizer.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        message: "You are not authorized to update this event",
-      });
-    }
+    const event = await authorizeEventAccess(req.user, id);
 
     const {
       title,
@@ -360,9 +347,7 @@ const updateEvent = async (req, res) => {
       tags,
     } = req.body;
 
-    // Validate dates if they are being updated
     const newStartDate = startDate ? new Date(startDate) : event.startDate;
-
     const newEndDate = endDate ? new Date(endDate) : event.endDate;
 
     if (newEndDate <= newStartDate) {
@@ -371,34 +356,36 @@ const updateEvent = async (req, res) => {
       });
     }
 
-    if (registrationDeadline && new Date(registrationDeadline) > newStartDate) {
+    if (
+      registrationDeadline &&
+      new Date(registrationDeadline) > newStartDate
+    ) {
       return res.status(400).json({
         message: "Registration deadline must be before the event starts",
       });
     }
 
-    // Update only provided fields
     if (title !== undefined) event.title = title;
     if (description !== undefined) event.description = description;
     if (category !== undefined) event.category = category;
     if (location !== undefined) event.location = location;
-    if (startDate !== undefined) event.startDate = startDate;
-    if (endDate !== undefined) event.endDate = endDate;
-
+    if (startDate !== undefined) event.startDate = newStartDate;
+    if (endDate !== undefined) event.endDate = newEndDate;
     if (registrationDeadline !== undefined) {
       event.registrationDeadline = registrationDeadline;
     }
-
-    if (bannerImage !== undefined) {
-      event.bannerImage = bannerImage;
-    }
-
-    if (capacity !== undefined) {
-      event.capacity = capacity;
-    }
+    if (bannerImage !== undefined) event.bannerImage = bannerImage;
+    if (capacity !== undefined) event.capacity = capacity;
 
     if (tags !== undefined) {
-      event.tags = tags;
+      if (typeof tags === "string") {
+        event.tags = tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0);
+      } else {
+        event.tags = tags;
+      }
     }
 
     await event.save();
@@ -410,32 +397,28 @@ const updateEvent = async (req, res) => {
   } catch (error) {
     console.error("Update event error:", error.message);
 
+    if (handleEventAccessError(error, res, "update")) {
+      return;
+    }
+
     res.status(500).json({
       message: "Server error",
     });
   }
 };
 
+// ==========================================
+// DELETE EVENT
+// ADMIN / ORGANIZER
+// ==========================================
+
 const deleteEvent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const event = await Event.findById(id);
+    const event = await authorizeEventAccess(req.user, id);
 
-    if (!event) {
-      return res.status(404).json({
-        message: "Event not found",
-      });
-    }
-
-    // Only the event organizer can delete it
-    if (event.organizer.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        message: "You are not authorized to delete this event",
-      });
-    }
-
-    await Event.findByIdAndDelete(id);
+    await Event.findByIdAndDelete(event._id);
 
     res.status(200).json({
       message: "Event deleted successfully",
@@ -443,15 +426,22 @@ const deleteEvent = async (req, res) => {
   } catch (error) {
     console.error("Delete event error:", error.message);
 
+    if (handleEventAccessError(error, res, "delete")) {
+      return;
+    }
+
     res.status(500).json({
       message: "Server error",
     });
   }
 };
+
 export {
   createEvent,
   getAllEvents,
+  getManagedEvents,
   getEventById,
+  getManagedEventById,
   publishEvent,
   updateEvent,
   deleteEvent,

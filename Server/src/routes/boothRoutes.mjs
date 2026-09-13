@@ -1,14 +1,14 @@
 import express from "express";
 
 import {
-    createBooth,
-    getEventBooths,
-    getAvailableBooths,
-    updateBooth,
-    assignBooth,
-    releaseBooth,
-    getMyBooths,
-    deleteBooth
+  createBooth,
+  getEventBooths,
+  getAvailableBooths,
+  updateBooth,
+  assignBooth,
+  releaseBooth,
+  getMyBooths,
+  deleteBooth,
 } from "../controllers/boothController.mjs";
 
 import authMiddleware from "../middleware/authMiddleware.mjs";
@@ -16,85 +16,60 @@ import authorizeRoles from "../middleware/roleMiddleware.mjs";
 
 const router = express.Router();
 
-
-// ==========================================
-// ADMIN ROUTES
-// ==========================================
-
-// Create booth for an event
 router.post(
-    "/event/:eventId",
-    authMiddleware,
-    authorizeRoles("admin"),
-    createBooth
+  "/event/:eventId",
+  authMiddleware,
+  authorizeRoles("admin", "organizer"),
+  createBooth
 );
 
-
-// Get all booths for an event
 router.get(
-    "/event/:eventId",
-    authMiddleware,
-    authorizeRoles("admin"),
-    getEventBooths
+  "/event/:eventId",
+  authMiddleware,
+  authorizeRoles("admin", "organizer"),
+  getEventBooths
 );
 
-
-// Update booth
 router.patch(
-    "/:id",
-    authMiddleware,
-    authorizeRoles("admin"),
-    updateBooth
+  "/:id",
+  authMiddleware,
+  authorizeRoles("admin", "organizer"),
+  updateBooth
 );
 
-
-// Assign booth to exhibitor
 router.patch(
-    "/:id/assign",
-    authMiddleware,
-    authorizeRoles("admin"),
-    assignBooth
+  "/:id/assign",
+  authMiddleware,
+  authorizeRoles("admin", "organizer"),
+  assignBooth
 );
 
-
-// Release booth
 router.patch(
-    "/:id/release",
-    authMiddleware,
-    authorizeRoles("admin"),
-    releaseBooth
+  "/:id/release",
+  authMiddleware,
+  authorizeRoles("admin", "organizer"),
+  releaseBooth
 );
 
-
-// Delete booth
 router.delete(
-    "/:id",
-    authMiddleware,
-    authorizeRoles("admin"),
-    deleteBooth
+  "/:id",
+  authMiddleware,
+  authorizeRoles("admin", "organizer"),
+  deleteBooth
 );
 
-
-// ==========================================
-// EXHIBITOR ROUTES
-// ==========================================
-
-// Get available booths for an event
 router.get(
-    "/event/:eventId/available",
-    authMiddleware,
-    authorizeRoles("exhibitor"),
-    getAvailableBooths
+  "/event/:eventId/available",
+  authMiddleware,
+  authorizeRoles("exhibitor"),
+  getAvailableBooths
 );
 
-
-// Get my assigned booths
 router.get(
-    "/my",
-    authMiddleware,
-    authorizeRoles("exhibitor"),
-    getMyBooths
+  "/my",
+  authMiddleware,
+  authorizeRoles("exhibitor"),
+  getMyBooths
 );
-
 
 export default router;

@@ -1,5 +1,6 @@
 import Event from "../models/Event.mjs";
 import Report from "../models/Report.mjs";
+import authorizeEventAccess from "../utils/authorizeEventAccess.mjs";
 
 import {
     getEventOverview,
@@ -610,6 +611,28 @@ if (userRole === "exhibitor") {
 
     }
 
+    if (["admin", "organizer"].includes(userRole)) {
+        await authorizeEventAccess(
+            { _id: userId, role: userRole },
+            eventId
+        );
+    }
+
+    if (userRole === "exhibitor") {
+        const participation =
+            await ExhibitorParticipation.findOne({
+                exhibitor: userId,
+                event: eventId,
+                status: "approved"
+            });
+
+        if (!participation) {
+            throw new Error(
+                "You are not authorized to generate a report for this event"
+            );
+        }
+    }
+
 
     // ==========================================
     // GET ANALYTICS DATA
@@ -760,6 +783,13 @@ const getPreviousReports = async ({
     userRole
 }) => {
 
+    if (["admin", "organizer"].includes(userRole)) {
+        await authorizeEventAccess(
+            { _id: userId, role: userRole },
+            eventId
+        );
+    }
+
     const query = {
         event: eventId
     };
@@ -861,6 +891,13 @@ const downloadReport = async ({
 
     }
 
+    if (userRole === "organizer") {
+        await authorizeEventAccess(
+            { _id: userId, role: userRole },
+            report.event
+        );
+    }
+
 
     // ==========================================
     // RETURN REPORT INFORMATION
@@ -904,6 +941,15 @@ const deleteReport = async ({
     if (userRole === "admin") {
 
         // Allowed
+
+    }
+
+    else if (userRole === "organizer") {
+
+        await authorizeEventAccess(
+            { _id: userId, role: userRole },
+            report.event
+        );
 
     }
 

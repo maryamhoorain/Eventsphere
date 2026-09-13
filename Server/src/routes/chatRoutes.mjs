@@ -1,14 +1,14 @@
 import express from "express";
 
 import {
-    createConversation,
-    getMyConversations,
-    getConversationMessages,
-    sendTextMessage,
-    sendImageMessage,
-    sendAudioMessage,
-    editMessage,
-    deleteMessage
+  createConversation,
+  getMyConversations,
+  getConversationMessages,
+  sendTextMessage,
+  sendImageMessage,
+  sendAudioMessage,
+  editMessage,
+  deleteMessage,
 } from "../controllers/chatController.mjs";
 
 import authMiddleware from "../middleware/authMiddleware.mjs";
@@ -18,93 +18,53 @@ import chatAudioUpload from "../middleware/chatAudioUpload.mjs";
 
 const router = express.Router();
 
+const staffOrExhibitor = authorizeRoles("admin", "organizer", "exhibitor");
 
-// ==========================================
-// CREATE CONVERSATION
-// ADMIN / EXHIBITOR
-// ==========================================
+router.post("/conversations", authMiddleware, staffOrExhibitor, createConversation);
 
-router.post(
-  "/conversations",
-  authMiddleware,
-  authorizeRoles("admin", "exhibitor"),
-  createConversation
-);
-
-
-// ==========================================
-// GET MY CONVERSATIONS
-// ADMIN / EXHIBITOR
-// ==========================================
-
-router.get(
-  "/conversations",
-  authMiddleware,
-  authorizeRoles("admin", "exhibitor"),
-  getMyConversations
-);
-
-
-// ==========================================
-// GET MESSAGES
-// ADMIN / EXHIBITOR
-// ==========================================
+router.get("/conversations", authMiddleware, staffOrExhibitor, getMyConversations);
 
 router.get(
   "/conversations/:conversationId/messages",
   authMiddleware,
-  authorizeRoles("admin", "exhibitor"),
+  staffOrExhibitor,
   getConversationMessages
 );
-// ==========================================
-// SEND TEXT MESSAGE
-// ADMIN / EXHIBITOR
-// ==========================================
 
 router.post(
   "/conversations/:conversationId/messages",
   authMiddleware,
-  authorizeRoles("admin", "exhibitor"),
+  staffOrExhibitor,
   sendTextMessage
 );
 
-// ==========================================
-// SEND IMAGE MESSAGE
-// ADMIN / EXHIBITOR
-// ==========================================
-
 router.post(
-    "/conversations/:conversationId/images",
-    authMiddleware,
-    authorizeRoles("admin", "exhibitor"),
-    chatImageUpload.single("image"),
-    sendImageMessage
+  "/conversations/:conversationId/images",
+  authMiddleware,
+  staffOrExhibitor,
+  chatImageUpload.single("image"),
+  sendImageMessage
 );
 
-// ==========================================
-// SEND AUDIO MESSAGE
-// ADMIN / EXHIBITOR
-// ==========================================
-
 router.post(
-    "/conversations/:conversationId/audio",
-    authMiddleware,
-    authorizeRoles("admin", "exhibitor"),
-    chatAudioUpload.single("audio"),
-    sendAudioMessage
+  "/conversations/:conversationId/audio",
+  authMiddleware,
+  staffOrExhibitor,
+  chatAudioUpload.single("audio"),
+  sendAudioMessage
 );
 
 router.put(
   "/conversations/:conversationId/messages/:messageId",
   authMiddleware,
-  authorizeRoles("admin", "exhibitor"),
+  staffOrExhibitor,
   editMessage
 );
 
 router.delete(
   "/conversations/:conversationId/messages/:messageId",
   authMiddleware,
-  authorizeRoles("admin", "exhibitor"),
+  staffOrExhibitor,
   deleteMessage
 );
 

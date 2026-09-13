@@ -58,10 +58,13 @@ const createConversation = async (req, res) => {
     const currentUserRole = req.user.role;
     const participantRole = participant.role;
 
+    const staffRoles = ["admin", "organizer"];
+
     const allowed =
-      (currentUserRole === "admin" && participantRole === "exhibitor") ||
+      (staffRoles.includes(currentUserRole) &&
+        (participantRole === "exhibitor" || staffRoles.includes(participantRole))) ||
       (currentUserRole === "exhibitor" &&
-        (participantRole === "admin" || participantRole === "exhibitor"));
+        (staffRoles.includes(participantRole) || participantRole === "exhibitor"));
 
     if (!allowed) {
       return res.status(403).json({

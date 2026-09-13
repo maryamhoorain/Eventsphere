@@ -1,10 +1,8 @@
 import Session from "../models/Session.mjs";
 import Event from "../models/Event.mjs";
-
-// ==========================================
-// CREATE SESSION
-// ADMIN
-// ==========================================
+import authorizeEventAccess, {
+  handleEventAccessError,
+} from "../utils/authorizeEventAccess.mjs";
 
 const createSession = async (req, res) => {
   try {
@@ -22,31 +20,13 @@ const createSession = async (req, res) => {
       capacity,
     } = req.body;
 
-    // ==============================
-    // REQUIRED FIELDS
-    // ==============================
-
     if (!title || !topic || !date || !startTime || !endTime) {
       return res.status(400).json({
         message: "Title, topic, date, start time and end time are required",
       });
     }
 
-    // ==============================
-    // CHECK EVENT
-    // ==============================
-
-    const event = await Event.findById(eventId);
-
-    if (!event) {
-      return res.status(404).json({
-        message: "Event not found",
-      });
-    }
-
-    // ==============================
-    // VALIDATE SESSION DATE
-    // ==============================
+    const event = await authorizeEventAccess(req.user, eventId);
 
     const sessionDate = new Date(date);
 
@@ -56,14 +36,8 @@ const createSession = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // CHECK SESSION DATE AGAINST EVENT DATE
-    // ==========================================
-
     const sessionDay = sessionDate.toISOString().split("T")[0];
-
     const eventStartDay = new Date(event.startDate).toISOString().split("T")[0];
-
     const eventEndDay = new Date(event.endDate).toISOString().split("T")[0];
 
     if (sessionDay < eventStartDay || sessionDay > eventEndDay) {
@@ -72,19 +46,11 @@ const createSession = async (req, res) => {
       });
     }
 
-    // ==============================
-    // VALIDATE TIME
-    // ==============================
-
     if (startTime >= endTime) {
       return res.status(400).json({
         message: "End time must be after start time",
       });
     }
-
-    // ==============================
-    // CREATE SESSION
-    // ==============================
 
     const session = await Session.create({
       event: eventId,
@@ -108,24 +74,19 @@ const createSession = async (req, res) => {
   } catch (error) {
     console.error("Create session error:", error.message);
 
+    if (handleEventAccessError(error, res, "create sessions for")) {
+      return;
+    }
+
     res.status(500).json({
       message: "Server error",
     });
   }
 };
 
-// ==========================================
-// GET ALL SESSIONS FOR EVENT
-// ADMIN / ORGANIZER / ATTENDEE
-// ==========================================
-
 const getEventSessions = async (req, res) => {
   try {
     const { eventId } = req.params;
-
-    // ==============================
-    // CHECK EVENT
-    // ==============================
 
     const event = await Event.findById(eventId);
 
@@ -135,9 +96,24 @@ const getEventSessions = async (req, res) => {
       });
     }
 
-    // ==============================
-    // GET SESSIONS
-    // ==============================
+    const isPublished = event.status === "published" && event.isPublished;
+
+    if (!isPublished) {
+      if (!req.user) {
+        return res.status(404).json({
+          message: "Event not found",
+        });
+      }
+
+      try {
+        await authorizeEventAccess(req.user, eventId);
+      } catch (error) {
+        if (handleEventAccessError(error, res, "view sessions for")) {
+          return;
+        }
+        throw error;
+      }
+    }
 
     const sessions = await Session.find({
       event: eventId,
@@ -153,16 +129,11 @@ const getEventSessions = async (req, res) => {
     });
   } catch (error) {
     console.error("Get event sessions error:", error.message);
-
     res.status(500).json({
       message: "Server error",
     });
   }
 };
-
-// ==========================================
-// GET SESSION BY ID
-// ==========================================
 
 const getSessionById = async (req, res) => {
   try {
@@ -172,7 +143,7 @@ const getSessionById = async (req, res) => {
       _id: id,
       isActive: true,
     })
-      .populate("event", "title category location startDate endDate")
+      .populate("event", "title category location startDate endDate status isPublished organizer")
       .populate("createdBy", "name email");
 
     if (!session) {
@@ -181,22 +152,36 @@ const getSessionById = async (req, res) => {
       });
     }
 
+    const event = session.event;
+    const isPublished = event.status === "published" && event.isPublished;
+
+    if (!isPublished) {
+      if (!req.user) {
+        return res.status(404).json({
+          message: "Session not found",
+        });
+      }
+
+      try {
+        await authorizeEventAccess(req.user, event._id);
+      } catch (error) {
+        if (handleEventAccessError(error, res, "view sessions for")) {
+          return;
+        }
+        throw error;
+      }
+    }
+
     res.status(200).json({
       session,
     });
   } catch (error) {
     console.error("Get session error:", error.message);
-
     res.status(500).json({
       message: "Server error",
     });
   }
 };
-
-// ==========================================
-// UPDATE SESSION
-// ADMIN
-// ==========================================
 
 const updateSession = async (req, res) => {
   try {
@@ -210,6 +195,8 @@ const updateSession = async (req, res) => {
       });
     }
 
+    const event = await authorizeEventAccess(req.user, session.event);
+
     const {
       title,
       topic,
@@ -222,68 +209,25 @@ const updateSession = async (req, res) => {
       capacity,
     } = req.body;
 
-    // ==============================
-    // VALIDATE DATES
-    // ==============================
-const newDate = date
-    ? new Date(date)
-    : new Date(session.date);
+    const newDate = date ? new Date(date) : new Date(session.date);
 
-if (isNaN(newDate.getTime())) {
-    return res.status(400).json({
-        message: "Invalid session date"
-    });
-}
+    if (isNaN(newDate.getTime())) {
+      return res.status(400).json({
+        message: "Invalid session date",
+      });
+    }
 
+    const sessionDay = newDate.toISOString().split("T")[0];
+    const eventStartDay = new Date(event.startDate).toISOString().split("T")[0];
+    const eventEndDay = new Date(event.endDate).toISOString().split("T")[0];
 
-// ==========================================
-// CHECK EVENT
-// ==========================================
-
-const event =
-    await Event.findById(session.event);
-
-if (!event) {
-    return res.status(404).json({
-        message: "Event not found"
-    });
-}
-
-
-// ==========================================
-// COMPARE CALENDAR DATES ONLY
-// ==========================================
-
-const sessionDay =
-    newDate.toISOString().split("T")[0];
-
-const eventStartDay =
-    new Date(event.startDate)
-        .toISOString()
-        .split("T")[0];
-
-const eventEndDay =
-    new Date(event.endDate)
-        .toISOString()
-        .split("T")[0];
-
-
-if (
-    sessionDay < eventStartDay ||
-    sessionDay > eventEndDay
-) {
-    return res.status(400).json({
-        message:
-            "Session date must be within the event dates"
-    });
-}
-
-    // ==============================
-    // VALIDATE TIME
-    // ==============================
+    if (sessionDay < eventStartDay || sessionDay > eventEndDay) {
+      return res.status(400).json({
+        message: "Session date must be within the event dates",
+      });
+    }
 
     const newStartTime = startTime || session.startTime;
-
     const newEndTime = endTime || session.endTime;
 
     if (newStartTime >= newEndTime) {
@@ -292,26 +236,14 @@ if (
       });
     }
 
-    // ==============================
-    // UPDATE PROVIDED FIELDS
-    // ==============================
-
     if (title !== undefined) session.title = title;
-
     if (topic !== undefined) session.topic = topic;
-
     if (description !== undefined) session.description = description;
-
     if (speaker !== undefined) session.speaker = speaker;
-
     if (date !== undefined) session.date = newDate;
-
     if (startTime !== undefined) session.startTime = startTime;
-
     if (endTime !== undefined) session.endTime = endTime;
-
     if (location !== undefined) session.location = location;
-
     if (capacity !== undefined) session.capacity = capacity;
 
     await session.save();
@@ -323,16 +255,15 @@ if (
   } catch (error) {
     console.error("Update session error:", error.message);
 
+    if (handleEventAccessError(error, res, "update sessions for")) {
+      return;
+    }
+
     res.status(500).json({
       message: "Server error",
     });
   }
 };
-
-// ==========================================
-// DELETE SESSION
-// ADMIN
-// ==========================================
 
 const deleteSession = async (req, res) => {
   try {
@@ -346,9 +277,9 @@ const deleteSession = async (req, res) => {
       });
     }
 
-    // Soft delete
-    session.isActive = false;
+    await authorizeEventAccess(req.user, session.event);
 
+    session.isActive = false;
     await session.save();
 
     res.status(200).json({
@@ -356,6 +287,10 @@ const deleteSession = async (req, res) => {
     });
   } catch (error) {
     console.error("Delete session error:", error.message);
+
+    if (handleEventAccessError(error, res, "delete sessions for")) {
+      return;
+    }
 
     res.status(500).json({
       message: "Server error",

@@ -28,6 +28,8 @@ import chatRoutes from "./src/routes/chatRoutes.mjs";
 import initializeChatSocket from "./src/sockets/chatSocket.mjs";
 import { setSocketIO } from "./src/config/socket.mjs";
 import aiRoutes from "./src/routes/aiRoutes.mjs";
+import organizerApplicationRoutes from "./src/routes/organizerApplicationRoutes.mjs";
+import organizerRouter from "./src/routes/organizerRoutes.mjs";
 
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
@@ -38,10 +40,10 @@ const app = express();
 const httpServer = http.createServer(app);
 
 const io = new Server(httpServer, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
 });
 
 setSocketIO(io);
@@ -71,6 +73,8 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/organizer-applications", organizerApplicationRoutes);
+app.use("/api/organizers", organizerRouter);
 
 app.get("/", (req, res) => {
   res.json({
@@ -84,8 +88,8 @@ const startServer = async () => {
     await connectDB();
 
     httpServer.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
   } catch (error) {
     console.error("Failed to start server:", error.message);
     process.exit(1);

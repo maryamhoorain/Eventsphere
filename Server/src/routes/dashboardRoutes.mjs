@@ -3,7 +3,8 @@ import express from "express";
 import {
     getAdminDashboard,
     getExhibitorDashboard,
-    getAttendeeDashboard
+    getAttendeeDashboard,
+    getOrganizerDashboard
 } from "../controllers/dashboardController.mjs";
 
 import authMiddleware from "../middleware/authMiddleware.mjs";
@@ -45,6 +46,13 @@ router.get(
     authMiddleware,
     authorizeRoles("attendee"),
     getAttendeeDashboard
+);
+
+router.get(
+    "/organizer",
+    authMiddleware,
+    authorizeRoles("organizer"),
+    getOrganizerDashboard
 );
 
 
