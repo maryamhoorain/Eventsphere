@@ -31,6 +31,7 @@ reportRouter.post(
 
     authorizeRoles(
         "admin",
+        "organizer",
         "exhibitor"
     ),
 
@@ -52,6 +53,7 @@ reportRouter.get(
 
     authorizeRoles(
         "admin",
+        "organizer",
         "exhibitor"
     ),
 
@@ -67,6 +69,7 @@ reportRouter.get(
     authMiddleware,
     authorizeRoles(
         "admin",
+        "organizer",
         "exhibitor"
     ),
     downloadReportController
@@ -81,6 +84,7 @@ reportRouter.delete(
     authMiddleware,
     authorizeRoles(
         "admin",
+        "organizer",
         "exhibitor"
     ),
     deleteReportController

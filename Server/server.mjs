@@ -38,10 +38,11 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = http.createServer(app);
+const frontendOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
+    origin: frontendOrigin,
     methods: ["GET", "POST"],
   },
 });
@@ -53,6 +54,17 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.json());
+app.use((req, res, next) => {
+  const requestOrigin = req.headers.origin;
+  if (requestOrigin === frontendOrigin) {
+    res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+    res.setHeader("Vary", "Origin");
+  }
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  return next();
+});
 app.use(express.static(path.join(__dirname, "src", "public")));
 
 app.use("/api/auth", authRoutes);

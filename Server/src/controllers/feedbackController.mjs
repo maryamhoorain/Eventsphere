@@ -709,6 +709,28 @@ const getMyFeedback = async (req, res) => {
   }
 };
 
+const getPublicFeedback = async (req, res) => {
+  try {
+    const feedback = await Feedback.find({
+      rating: { $gte: 1 },
+      comment: { $nin: [null, ""] },
+    })
+      .select("feedbackType rating comment createdAt user event session booth")
+      .populate("user", "name")
+      .populate("event", "title")
+      .populate("session", "title")
+      .populate("booth", "boothNumber")
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+
+    return res.status(200).json({ count: feedback.length, feedback });
+  } catch (error) {
+    console.error("Get public feedback error:", error.message);
+    return res.status(500).json({ message: "Unable to load public feedback" });
+  }
+};
+
 
 // ======================================================
 // GET FEEDBACK BY ID
@@ -1062,6 +1084,7 @@ export {
   createSessionFeedback,
   createWebsiteFeedback,
   getMyFeedback,
+  getPublicFeedback,
   getFeedbackById,
   updateFeedback,
   deleteFeedback,

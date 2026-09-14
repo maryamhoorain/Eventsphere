@@ -6,6 +6,7 @@ import {
   createSessionFeedback,
   createWebsiteFeedback,
   getMyFeedback,
+  getPublicFeedback,
   getFeedbackById,
   updateFeedback,
   deleteFeedback,
@@ -80,6 +81,8 @@ router.get(
   authorizeRoles("attendee"),
   getMyFeedback
 );
+
+router.get("/public", getPublicFeedback);
 
 
 // ======================================================

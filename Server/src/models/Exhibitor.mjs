@@ -42,6 +42,11 @@ const exhibitorSchema = new mongoose.Schema(
             type: String,
             enum: ["pending", "approved", "rejected"],
             default: "pending"
+        },
+
+        adminNotes: {
+            type: String,
+            trim: true
         }
     },
     {

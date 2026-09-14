@@ -11,6 +11,9 @@ import {
     getMyVisitorAnalytics,
     getMyFeedbackAnalytics
 } from "../services/analyticsService.mjs";
+import authorizeEventAccess, {
+    handleEventAccessError,
+} from "../utils/authorizeEventAccess.mjs";
 
 
 // ==========================================
@@ -23,6 +26,7 @@ const eventOverview = async (req, res) => {
     try {
 
         const { eventId } = req.params;
+        await authorizeEventAccess(req.user, eventId);
 
         const overview =
             await getEventOverview(eventId);
@@ -39,6 +43,9 @@ const eventOverview = async (req, res) => {
             error.message
         );
 
+        if (handleEventAccessError(error, res, "view analytics for")) {
+            return;
+        }
         if (error.message === "Event not found") {
             return res.status(404).json({
                 message: "Event not found"
@@ -62,6 +69,7 @@ const registrationAnalytics = async (req, res) => {
     try {
 
         const { eventId } = req.params;
+        await authorizeEventAccess(req.user, eventId);
 
         const data =
             await getRegistrationAnalytics(eventId);
@@ -79,6 +87,9 @@ const registrationAnalytics = async (req, res) => {
             error.message
         );
 
+        if (handleEventAccessError(error, res, "view registrations for")) {
+            return;
+        }
         if (error.message === "Event not found") {
             return res.status(404).json({
                 message: "Event not found"
@@ -102,6 +113,7 @@ const exhibitorAnalytics = async (req, res) => {
     try {
 
         const { eventId } = req.params;
+        await authorizeEventAccess(req.user, eventId);
 
         const data =
             await getExhibitorAnalytics(eventId);
@@ -119,6 +131,9 @@ const exhibitorAnalytics = async (req, res) => {
             error.message
         );
 
+        if (handleEventAccessError(error, res, "view exhibitor analytics for")) {
+            return;
+        }
         if (error.message === "Event not found") {
             return res.status(404).json({
                 message: "Event not found"
@@ -142,6 +157,7 @@ const boothAnalytics = async (req, res) => {
     try {
 
         const { eventId } = req.params;
+        await authorizeEventAccess(req.user, eventId);
 
         const data =
             await getBoothAnalytics(eventId);
@@ -159,6 +175,9 @@ const boothAnalytics = async (req, res) => {
             error.message
         );
 
+        if (handleEventAccessError(error, res, "view booth analytics for")) {
+            return;
+        }
         if (error.message === "Event not found") {
             return res.status(404).json({
                 message: "Event not found"
@@ -182,6 +201,7 @@ const visitorAnalytics = async (req, res) => {
     try {
 
         const { eventId } = req.params;
+        await authorizeEventAccess(req.user, eventId);
 
         const data =
             await getVisitorAnalytics(eventId);
@@ -199,6 +219,9 @@ const visitorAnalytics = async (req, res) => {
             error.message
         );
 
+        if (handleEventAccessError(error, res, "view visitor analytics for")) {
+            return;
+        }
         if (error.message === "Event not found") {
             return res.status(404).json({
                 message: "Event not found"
@@ -222,6 +245,7 @@ const feedbackAnalytics = async (req, res) => {
     try {
 
         const { eventId } = req.params;
+        await authorizeEventAccess(req.user, eventId);
 
         const data =
             await getFeedbackAnalytics(eventId);
@@ -239,6 +263,9 @@ const feedbackAnalytics = async (req, res) => {
             error.message
         );
 
+        if (handleEventAccessError(error, res, "view feedback for")) {
+            return;
+        }
         if (error.message === "Event not found") {
             return res.status(404).json({
                 message: "Event not found"

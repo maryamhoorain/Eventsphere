@@ -1,5 +1,8 @@
 import OrganizerApplication from "../models/OrganizerApplication.mjs";
+import Exhibitor from "../models/Exhibitor.mjs";
 import User from "../models/User.mjs";
+import sendEmail from "../utils/email.mjs";
+import createNotification from "../utils/createNotification.mjs";
 
 // ======================================================
 // SUBMIT ORGANIZER APPLICATION
@@ -38,6 +41,17 @@ const submitOrganizerApplication = async (req, res) => {
         success: false,
         message:
           "Only attendees can apply to become organizers",
+      });
+    }
+
+    const exhibitorApplication = await Exhibitor.findOne({
+      user: userId,
+      status: { $in: ["pending", "approved"] },
+    }).select("status");
+    if (exhibitorApplication) {
+      return res.status(409).json({
+        success: false,
+        message: "You already requested exhibitor access. You cannot apply as an organizer until that application is rejected.",
       });
     }
 
@@ -89,7 +103,7 @@ const submitOrganizerApplication = async (req, res) => {
         applicant: userId,
       });
 
-    if (existingApplication) {
+    if (existingApplication && existingApplication.status !== "rejected") {
       return res.status(409).json({
         success: false,
         message:
@@ -104,8 +118,23 @@ const submitOrganizerApplication = async (req, res) => {
     // Create application
     // --------------------------------------------------
 
-    const application =
-      await OrganizerApplication.create({
+    const application = existingApplication
+      ? await OrganizerApplication.findByIdAndUpdate(
+        existingApplication._id,
+        {
+          $set: {
+            organizationName: organizationName.trim(),
+            organizationDescription: organizationDescription?.trim() || undefined,
+            reason: reason.trim(),
+            experience: experience?.trim() || undefined,
+            website: website?.trim() || undefined,
+            status: "pending",
+          },
+          $unset: { adminNotes: 1, reviewedBy: 1, reviewedAt: 1 },
+        },
+        { new: true, runValidators: true },
+      )
+      : await OrganizerApplication.create({
         applicant: userId,
         organizationName:
           organizationName.trim(),
@@ -425,40 +454,74 @@ const approveOrganizerApplication = async (
       });
     }
 
-    // --------------------------------------------------
-    // Make sure applicant is still an attendee
-    // --------------------------------------------------
-
-    if (applicant.role !== "attendee") {
+    // A pending request normally belongs to an attendee. An organizer role
+    // is accepted here only to recover applications promoted by an older
+    // approval attempt that failed before the application was saved.
+    if (!["attendee", "organizer"].includes(applicant.role)) {
       return res.status(400).json({
         success: false,
         message:
-          "Applicant is no longer an attendee",
+          "Applicant is not eligible for organizer approval",
       });
     }
 
-    // --------------------------------------------------
-    // Update user role
-    // --------------------------------------------------
-
-    applicant.role = "organizer";
-
-    await applicant.save();
-
-    // --------------------------------------------------
-    // Update application
-    // --------------------------------------------------
-
-    application.status = "approved";
-    application.reviewedBy = adminId;
-    application.reviewedAt = new Date();
-
-    if (req.body.adminNotes) {
-      application.adminNotes =
-        req.body.adminNotes.trim();
+    const applicationUpdate = {
+      status: "approved",
+      reviewedBy: adminId,
+      reviewedAt: new Date(),
+    };
+    if (req.body?.adminNotes) {
+      applicationUpdate.adminNotes = req.body.adminNotes.trim();
     }
 
-    await application.save();
+    // Mark the application first, then promote the user. If promotion fails,
+    // restore the pending state so the two records cannot diverge.
+    const updated = await OrganizerApplication.findOneAndUpdate(
+      { _id: application._id, status: "pending" },
+      { $set: applicationUpdate },
+      { new: true, runValidators: true },
+    );
+    if (!updated) {
+      return res.status(409).json({
+        success: false,
+        message: "This application was already processed",
+      });
+    }
+
+    try {
+      if (applicant.role !== "organizer") {
+        const roleUpdate = await User.updateOne(
+          { _id: applicant._id, role: "attendee" },
+          { $set: { role: "organizer" } },
+        );
+        if (roleUpdate.modifiedCount !== 1) {
+          throw new Error("Applicant role could not be updated");
+        }
+      }
+    } catch (promotionError) {
+      await OrganizerApplication.updateOne(
+        { _id: updated._id, status: "approved" },
+        { $set: { status: "pending" }, $unset: { reviewedBy: 1, reviewedAt: 1 } },
+      );
+      throw promotionError;
+    }
+
+    await createNotification({
+      recipient: applicant._id,
+      title: "Organizer application approved",
+      message: "Your organizer application was approved. You can now create events.",
+      type: "application",
+    });
+    try {
+      await sendEmail({
+        to: applicant.email,
+        subject: "Your EventSphere organizer application was approved",
+        text: "Your organizer application was approved. You can now create events on EventSphere.",
+        html: "<p>Your organizer application was approved. You can now create events on EventSphere.</p>",
+      });
+    } catch (emailError) {
+      console.error("Organizer approval email error:", emailError.message);
+    }
 
     // --------------------------------------------------
     // Return updated application
@@ -466,7 +529,7 @@ const approveOrganizerApplication = async (
 
     const updatedApplication =
       await OrganizerApplication.findById(
-        application._id
+        updated._id
       )
         .populate(
           "applicant",
@@ -495,7 +558,7 @@ const approveOrganizerApplication = async (
     return res.status(500).json({
       success: false,
       message:
-        "Unable to approve organizer application",
+        error?.message || "Unable to approve organizer application",
     });
   }
 };
@@ -557,12 +620,38 @@ const rejectOrganizerApplication = async (
     application.reviewedBy = adminId;
     application.reviewedAt = new Date();
 
-    if (req.body.adminNotes) {
+    if (req.body?.adminNotes) {
       application.adminNotes =
         req.body.adminNotes.trim();
     }
 
+    if (application.applicant) {
+      await User.updateOne(
+        { _id: application.applicant, role: "organizer" },
+        { $set: { role: "attendee" } },
+      );
+    }
+
     await application.save();
+
+    const rejectedApplicant = await User.findById(application.applicant).select("email");
+    const rejectionReason = application.adminNotes || "No additional reason was provided.";
+    await createNotification({
+      recipient: application.applicant,
+      title: "Organizer application rejected",
+      message: `Your organizer application was rejected. Reason: ${rejectionReason}`,
+      type: "application",
+    });
+    try {
+      await sendEmail({
+        to: rejectedApplicant?.email,
+        subject: "Your EventSphere organizer application was rejected",
+        text: `Your organizer application was rejected. Reason: ${rejectionReason}`,
+        html: `<p>Your organizer application was rejected.</p><p><strong>Reason:</strong> ${rejectionReason}</p>`,
+      });
+    } catch (emailError) {
+      console.error("Organizer rejection email error:", emailError.message);
+    }
 
     // --------------------------------------------------
     // Return updated application

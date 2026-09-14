@@ -4,6 +4,7 @@ import {
     downloadReport,
     deleteReport
 } from "../services/reportService.mjs";
+import cloudinary from "../config/cloudinary.mjs";
 
 // ======================================================
 // GENERATE REPORT
@@ -204,23 +205,35 @@ const downloadReportController = async (req, res) => {
             });
 
 
-        // ==========================================
-        // RETURN DOWNLOAD URL
-        // ==========================================
+        const downloadUrl = cloudinary.utils.private_download_url(
+            report.cloudinaryPublicId,
+            report.format,
+            {
+            resource_type: "raw",
+            type: "upload",
+            attachment: true,
+            },
+        );
 
-        res.status(200).json({
+        const cloudinaryResponse = await fetch(downloadUrl);
+        if (!cloudinaryResponse.ok) {
+            throw new Error(`Cloudinary returned HTTP ${cloudinaryResponse.status}`);
+        }
 
-            message:
-                "Report download link generated successfully",
+        const contentType = report.format === "pdf"
+            ? "application/pdf"
+            : report.format === "xlsx"
+                ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-            report: {
-                id: report._id,
-                fileName: report.fileName,
-                format: report.format,
-                downloadUrl: report.cloudinaryUrl
-            }
-
-        });
+        res.status(200);
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Content-Disposition", `attachment; filename="${report.fileName}"`);
+        const contentLength = cloudinaryResponse.headers.get("content-length");
+        if (contentLength) {
+            res.setHeader("Content-Length", contentLength);
+        }
+        res.send(Buffer.from(await cloudinaryResponse.arrayBuffer()));
 
     } catch (error) {
 

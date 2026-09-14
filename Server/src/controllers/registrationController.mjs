@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 
 import Registration from "../models/Registration.mjs";
+import authorizeEventAccess, {
+  handleEventAccessError,
+} from "../utils/authorizeEventAccess.mjs";
 import SessionRegistration from "../models/SessionRegistration.mjs";
 import Session from "../models/Session.mjs";
 import Event from "../models/Event.mjs";
@@ -957,8 +960,7 @@ const getEventRegistrations = async (
   try {
     const { eventId } = req.params;
 
-    const event =
-      await Event.findById(eventId);
+    const event = await authorizeEventAccess(req.user, eventId);
 
     if (!event) {
       return res.status(404).json({
@@ -1000,6 +1002,9 @@ const getEventRegistrations = async (
       error.message
     );
 
+    if (handleEventAccessError(error, res, "view registrations for")) {
+      return;
+    }
     res.status(500).json({
       message: "Server error",
     });

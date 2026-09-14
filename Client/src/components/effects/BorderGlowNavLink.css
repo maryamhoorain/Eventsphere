@@ -1,0 +1,25 @@
+/* Scoped override: BorderGlow ships as a block-level "card" by default.
+   For navbar use it needs to behave like an inline pill that hugs its
+   link's own size instead of stretching/blocking within the nav's
+   flex row, on both desktop and the stacked mobile menu. */
+.border-glow-card.nav-borderglow {
+  display: inline-grid;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.border-glow-card.nav-borderglow > .border-glow-inner {
+  overflow: visible;
+}
+
+.border-glow-card.nav-borderglow a {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .border-glow-card.nav-borderglow {
+    display: grid;
+    width: 100%;
+  }
+}

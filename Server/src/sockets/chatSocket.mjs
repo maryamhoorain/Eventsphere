@@ -106,7 +106,7 @@ const initializeChatSocket = (io) => {
           return;
         }
 
-        const trimmedText = text.trim();
+        const messageText = text;
 
         const conversation = await Conversation.findOne({
           _id: conversationId,
@@ -125,7 +125,7 @@ const initializeChatSocket = (io) => {
           conversation: conversationId,
           sender: socket.user._id,
           messageType: "text",
-          text: trimmedText,
+          text: messageText,
           fileUrl: null,
           filePublicId: null,
         });

@@ -3,6 +3,7 @@ import uploadToCloudinary from "../utils/uploadToCloudinary.mjs";
 import authorizeEventAccess, {
   handleEventAccessError,
 } from "../utils/authorizeEventAccess.mjs";
+import createNotification from "../utils/createNotification.mjs";
 
 // ==========================================
 // CREATE EVENT
@@ -33,6 +34,12 @@ const createEvent = async (req, res) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
+    if (start < new Date()) {
+      return res.status(400).json({
+        message: "Event start date cannot be in the past",
+      });
+    }
+
     if (end <= start) {
       return res.status(400).json({
         message: "End date must be after start date",
@@ -43,6 +50,15 @@ const createEvent = async (req, res) => {
       return res.status(400).json({
         message: "Registration deadline must be before the event starts",
       });
+    }
+
+    let eventLocation = location;
+    if (typeof eventLocation === "string") {
+      try {
+        eventLocation = JSON.parse(eventLocation);
+      } catch {
+        eventLocation = { city: eventLocation };
+      }
     }
 
     let bannerImage = null;
@@ -66,7 +82,7 @@ const createEvent = async (req, res) => {
       description,
       category,
       organizer: req.user._id,
-      location,
+      location: eventLocation,
       startDate: start,
       endDate: end,
       registrationDeadline,
@@ -114,9 +130,10 @@ const getAllEvents = async (req, res) => {
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
         { category: { $regex: search, $options: "i" } },
         { tags: { $regex: search, $options: "i" } },
+        { "location.city": { $regex: search, $options: "i" } },
+        { "location.country": { $regex: search, $options: "i" } },
       ];
     }
 
@@ -293,6 +310,12 @@ const publishEvent = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Only an admin can approve and publish events",
+      });
+    }
+
     const event = await authorizeEventAccess(req.user, id);
 
     if (event.status !== "draft") {
@@ -305,6 +328,16 @@ const publishEvent = async (req, res) => {
     event.isPublished = true;
 
     await event.save();
+
+    if (event.organizer) {
+      await createNotification({
+        recipient: event.organizer,
+        title: "Event approved",
+        message: `${event.title} has been approved and published.`,
+        type: "event",
+        relatedEvent: event._id,
+      });
+    }
 
     res.status(200).json({
       message: "Event published successfully",
@@ -349,6 +382,12 @@ const updateEvent = async (req, res) => {
 
     const newStartDate = startDate ? new Date(startDate) : event.startDate;
     const newEndDate = endDate ? new Date(endDate) : event.endDate;
+
+    if (startDate && newStartDate < new Date()) {
+      return res.status(400).json({
+        message: "Event start date cannot be in the past",
+      });
+    }
 
     if (newEndDate <= newStartDate) {
       return res.status(400).json({

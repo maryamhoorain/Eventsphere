@@ -13,14 +13,14 @@ const transporter = nodemailer.createTransport({
 
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    pass: process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD,
   },
 });
 
 console.log("Email config check:", {
   emailUser: process.env.EMAIL_USER ? "Loaded" : "Missing",
 
-  emailPass: process.env.EMAIL_PASS ? "Loaded" : "Missing",
+  emailPass: process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD ? "Loaded" : "Missing",
 });
 
 // ======================================================
@@ -31,7 +31,7 @@ const sendEmail = async ({ to, subject, html }) => {
   console.log("Attempting to send email...");
   console.log("To:", to);
   console.log("From:", process.env.EMAIL_USER ? "Loaded" : "Missing");
-  console.log("Password:", process.env.EMAIL_PASS ? "Loaded" : "Missing");
+  console.log("Password:", process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD ? "Loaded" : "Missing");
 
   const info = await transporter.sendMail({
     from: `"EventSphere" <${process.env.EMAIL_USER}>`,
@@ -134,18 +134,20 @@ const registerUser = async (req, res) => {
     // VERIFICATION LINK
     // ==========================================
 
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const verificationUrl = `${frontendUrl}/verify-email/${verificationToken}`;
 
     // ==========================================
     // SEND VERIFICATION EMAIL
     // ==========================================
 
-    await sendEmail({
-      to: user.email,
+    let verificationEmailSent = true;
 
-      subject: "Verify your EventSphere account",
-
-      html: `
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Verify your EventSphere account",
+        html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
 
                     <h2>Welcome to EventSphere!</h2>
@@ -194,16 +196,27 @@ const registerUser = async (req, res) => {
                     </p>
 
                 </div>
-            `,
-    });
+        `,
+      });
+    } catch (emailError) {
+      verificationEmailSent = false;
+      console.error("Verification email delivery failed:", emailError.message);
+    }
 
     // ==========================================
     // RESPONSE
     // ==========================================
 
     res.status(201).json({
-      message:
-        "Registration successful. Please check your email to verify your account.",
+      message: verificationEmailSent
+        ? "Registration successful. Please check your email to verify your account."
+        : "Account created, but the verification email could not be sent. Use the local verification link to activate this account.",
+
+      verificationEmailSent,
+
+      ...(verificationEmailSent || process.env.NODE_ENV === "production"
+        ? {}
+        : { verificationUrl }),
 
       user: {
         id: user._id,
@@ -285,6 +298,51 @@ const verifyEmail = async (req, res) => {
     res.status(500).json({
       message: "Server error",
     });
+  }
+};
+
+const resendVerificationEmail = async (req, res) => {
+  try {
+    const normalizedEmail = String(req.body?.email || "").toLowerCase().trim();
+    if (!normalizedEmail) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
+    if (!user) {
+      return res.status(200).json({ message: "If the account exists, a verification email has been sent." });
+    }
+    if (user.emailVerified) {
+      return res.status(400).json({ message: "This email is already verified. You can sign in." });
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    user.emailVerificationToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
+    user.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+    await user.save();
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const verificationUrl = `${frontendUrl}/verify-email/${verificationToken}`;
+    let verificationEmailSent = true;
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Verify your EventSphere account",
+        html: `<p>Verify your EventSphere account:</p><p><a href="${verificationUrl}">Verify Email</a></p>`,
+      });
+    } catch (emailError) {
+      verificationEmailSent = false;
+      console.error("Verification email delivery failed:", emailError.message);
+    }
+
+    return res.status(200).json({
+      message: verificationEmailSent ? "Verification email sent." : "Email could not be sent. Use the local verification link.",
+      verificationEmailSent,
+      ...(verificationEmailSent || process.env.NODE_ENV === "production" ? {} : { verificationUrl }),
+    });
+  } catch (error) {
+    console.error("Resend verification error:", error.message);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -479,7 +537,8 @@ const forgotPassword = async (req, res) => {
     // RESET URL
     // ==========================================
 
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
 
     // ==========================================
     // SEND RESET EMAIL
@@ -652,6 +711,7 @@ const resetPassword = async (req, res) => {
 export {
   registerUser,
   verifyEmail,
+  resendVerificationEmail,
   loginUser,
   getCurrentUser,
   forgotPassword,
