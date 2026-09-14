@@ -36,10 +36,11 @@ const userSchema = new mongoose.Schema(
     },
 
     role: {
-    type: String,
-    enum: ["admin", "organizer", "exhibitor", "attendee"],
-    default: "attendee",
-},
+      type: String,
+      enum: ["admin", "organizer", "exhibitor", "attendee"],
+      default: "attendee",
+    },
+
     phone: {
       type: String,
       trim: true,

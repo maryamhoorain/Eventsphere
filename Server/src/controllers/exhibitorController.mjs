@@ -1,5 +1,8 @@
 import Exhibitor from "../models/Exhibitor.mjs";
 import User from "../models/User.mjs";
+import OrganizerApplication from "../models/OrganizerApplication.mjs";
+import sendEmail from "../utils/email.mjs";
+import createNotification from "../utils/createNotification.mjs";
 
 const applyAsExhibitor = async (req, res) => {
     try {
@@ -22,12 +25,22 @@ const applyAsExhibitor = async (req, res) => {
             });
         }
 
+        const organizerApplication = await OrganizerApplication.findOne({
+            applicant: userId,
+            status: { $in: ["pending", "approved"] },
+        }).select("status");
+        if (organizerApplication) {
+            return res.status(409).json({
+                message: "You already requested organizer access. You cannot apply as an exhibitor until that application is rejected.",
+            });
+        }
+
         // Check if application already exists
         const existingApplication = await Exhibitor.findOne({
             user: userId
         });
 
-        if (existingApplication) {
+        if (existingApplication && existingApplication.status !== "rejected") {
             return res.status(400).json({
                 message: "You have already submitted an exhibitor application"
             });
@@ -48,17 +61,35 @@ const applyAsExhibitor = async (req, res) => {
         }
 
         // Create application
-        const application = await Exhibitor.create({
-            user: userId,
-            companyName,
-            description,
-            industry,
-            website,
-            contactEmail,
-            contactPhone,
-            logo,
-            status: "pending"
-        });
+        const application = existingApplication
+            ? await Exhibitor.findByIdAndUpdate(
+                existingApplication._id,
+                {
+                    $set: {
+                        companyName,
+                        description,
+                        industry,
+                        website,
+                        contactEmail,
+                        contactPhone,
+                        logo,
+                        status: "pending",
+                    },
+                    $unset: { adminNotes: 1 },
+                },
+                { new: true, runValidators: true },
+            )
+            : await Exhibitor.create({
+                user: userId,
+                companyName,
+                description,
+                industry,
+                website,
+                contactEmail,
+                contactPhone,
+                logo,
+                status: "pending"
+            });
 
         res.status(201).json({
             message: "Exhibitor application submitted successfully",
@@ -97,6 +128,16 @@ const getApplications = async (req, res) => {
         });
     }
 };
+const getMyApplication = async (req, res) => {
+    try {
+        const application = await Exhibitor.findOne({ user: req.user._id })
+            .populate("user", "name email phone role");
+        return res.status(200).json({ application });
+    } catch (error) {
+        console.error("Get my exhibitor application error:", error.message);
+        return res.status(500).json({ message: "Unable to retrieve exhibitor application" });
+    }
+};
 const approveApplication = async (req, res) => {
     try {
         const { id } = req.params;
@@ -130,6 +171,22 @@ const approveApplication = async (req, res) => {
 
         user.role = "exhibitor";
         await user.save();
+        await createNotification({
+            recipient: user._id,
+            title: "Exhibitor application approved",
+            message: "Your exhibitor application was approved.",
+            type: "application",
+        });
+        try {
+            await sendEmail({
+                to: user.email,
+                subject: "Your EventSphere exhibitor application was approved",
+                text: "Your exhibitor application was approved. You can now use exhibitor features on EventSphere.",
+                html: "<p>Your exhibitor application was approved. You can now use exhibitor features on EventSphere.</p>",
+            });
+        } catch (emailError) {
+            console.error("Exhibitor approval email error:", emailError.message);
+        }
 
         res.status(200).json({
             message: "Exhibitor application approved successfully",
@@ -166,8 +223,27 @@ const rejectApplication = async (req, res) => {
         }
 
         application.status = "rejected";
+        application.adminNotes = req.body.adminNotes?.trim() || "";
 
         await application.save();
+        const user = await User.findById(application.user).select("email");
+        const reason = application.adminNotes || "No additional reason was provided.";
+        await createNotification({
+            recipient: application.user,
+            title: "Exhibitor application rejected",
+            message: `Your exhibitor application was rejected. Reason: ${reason}`,
+            type: "application",
+        });
+        try {
+            await sendEmail({
+                to: user?.email,
+                subject: "Your EventSphere exhibitor application was rejected",
+                text: `Your exhibitor application was rejected. Reason: ${reason}`,
+                html: `<p>Your exhibitor application was rejected.</p><p><strong>Reason:</strong> ${reason}</p>`,
+            });
+        } catch (emailError) {
+            console.error("Exhibitor rejection email error:", emailError.message);
+        }
 
         res.status(200).json({
             message: "Exhibitor application rejected successfully",
@@ -186,4 +262,4 @@ const rejectApplication = async (req, res) => {
     }
 };
 
-export { applyAsExhibitor, getApplications, approveApplication , rejectApplication };
+export { applyAsExhibitor, getApplications, getMyApplication, approveApplication , rejectApplication };

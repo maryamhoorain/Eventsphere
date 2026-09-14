@@ -61,10 +61,9 @@ const createConversation = async (req, res) => {
     const staffRoles = ["admin", "organizer"];
 
     const allowed =
-      (staffRoles.includes(currentUserRole) &&
-        (participantRole === "exhibitor" || staffRoles.includes(participantRole))) ||
+      (currentUserRole === "admin" && participantRole === "exhibitor") ||
       (currentUserRole === "exhibitor" &&
-        (staffRoles.includes(participantRole) || participantRole === "exhibitor"));
+        (participantRole === "admin" || participantRole === "exhibitor"));
 
     if (!allowed) {
       return res.status(403).json({
@@ -126,6 +125,28 @@ const createConversation = async (req, res) => {
     res.status(500).json({
       message: "Server error",
     });
+  }
+};
+
+const getChatContacts = async (req, res) => {
+  try {
+    const role = req.user.role;
+    const roles = role === "attendee"
+      ? ["admin"]
+      : role === "admin"
+        ? ["admin", "organizer", "exhibitor", "attendee"]
+        : ["admin", "organizer", "exhibitor"];
+
+    const contacts = await User.find({
+      _id: { $ne: req.user._id },
+      role: { $in: roles },
+      isActive: true,
+    }).select("_id name email role").sort({ name: 1 });
+
+    return res.status(200).json({ contacts });
+  } catch (error) {
+    console.error("Get chat contacts error:", error.message);
+    return res.status(500).json({ message: "Unable to get chat contacts" });
   }
 };
 
@@ -744,6 +765,7 @@ const deleteMessage = async (req, res) => {
 
 export {
   createConversation,
+  getChatContacts,
   getMyConversations,
   getConversationMessages,
   sendTextMessage,

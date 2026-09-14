@@ -2,6 +2,7 @@ import BoothVisit from "../models/BoothVisit.mjs";
 import Booth from "../models/Booth.mjs";
 import Registration from "../models/Registration.mjs";
 import ExhibitorParticipation from "../models/ExhibitorParticipation.mjs";
+import Event from "../models/Event.mjs";
 
 
 // ==========================================
@@ -237,6 +238,30 @@ const getMyBoothVisits = async (req, res) => {
     }
 };
 
+const getManagedBoothVisits = async (req, res) => {
+    try {
+        let filter = {};
+        if (req.user.role === "organizer") {
+            const events = await Event.find({ organizer: req.user._id }).select("_id").lean();
+            filter.event = { $in: events.map((event) => event._id) };
+        } else if (req.user.role === "exhibitor") {
+            const booths = await Booth.find({ exhibitor: req.user._id }).select("_id").lean();
+            filter.booth = { $in: booths.map((booth) => booth._id) };
+        }
+
+        const visits = await BoothVisit.find(filter)
+            .populate("attendee", "name email phone")
+            .populate("booth", "boothNumber size location price status")
+            .populate("event", "title category startDate endDate")
+            .sort({ visitedAt: -1 });
+
+        return res.status(200).json({ count: visits.length, visits });
+    } catch (error) {
+        console.error("Get managed booth visits error:", error.message);
+        return res.status(500).json({ message: "Server error" });
+    }
+};
+
 
 // ==========================================
 // GET BOOTH VISIT BY ID
@@ -292,5 +317,6 @@ const getBoothVisitById = async (req, res) => {
 export {
     recordBoothVisit,
     getMyBoothVisits,
+    getManagedBoothVisits,
     getBoothVisitById
 };

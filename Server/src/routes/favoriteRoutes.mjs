@@ -19,20 +19,24 @@ const router = express.Router();
 
 // Add favorite
 router.post(
-    "/:eventId",
+    "/event/:eventId",
     authMiddleware,
     authorizeRoles("attendee"),
     addFavorite
 );
+router.post("/session/:sessionId", authMiddleware, authorizeRoles("attendee"), addFavorite);
+router.post("/:eventId", authMiddleware, authorizeRoles("attendee"), addFavorite);
 
 
 // Remove favorite
 router.delete(
-    "/:eventId",
+    "/event/:eventId",
     authMiddleware,
     authorizeRoles("attendee"),
     removeFavorite
 );
+router.delete("/session/:sessionId", authMiddleware, authorizeRoles("attendee"), removeFavorite);
+router.delete("/:eventId", authMiddleware, authorizeRoles("attendee"), removeFavorite);
 
 
 // Get my favorites
@@ -46,11 +50,14 @@ router.get(
 
 // Check favorite
 router.get(
-    "/check/:eventId",
+    "/check/event/:eventId",
     authMiddleware,
     authorizeRoles("attendee"),
     checkFavorite
 );
+router.get("/event/:eventId", authMiddleware, authorizeRoles("attendee"), checkFavorite);
+router.get("/check/session/:sessionId", authMiddleware, authorizeRoles("attendee"), checkFavorite);
+router.get("/session/:sessionId", authMiddleware, authorizeRoles("attendee"), checkFavorite);
 
 
 export default router;

@@ -34,8 +34,8 @@ router.delete(
   deleteSession
 );
 
-router.get("/event/:eventId", authMiddleware, getEventSessions);
+router.get("/event/:eventId", getEventSessions);
 
-router.get("/:id", authMiddleware, getSessionById);
+router.get("/:id", getSessionById);
 
 export default router;

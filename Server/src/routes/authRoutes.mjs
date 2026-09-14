@@ -7,6 +7,7 @@ import {
     forgotPassword,
     resetPassword,
     verifyEmail
+    , resendVerificationEmail
 } from "../controllers/authController.mjs";
 
 import authMiddleware from "../middleware/authMiddleware.mjs";
@@ -31,6 +32,11 @@ router.post(
 router.get(
     "/verify-email/:token",
     verifyEmail
+);
+
+router.post(
+    "/resend-verification",
+    resendVerificationEmail
 );
 
 router.post(

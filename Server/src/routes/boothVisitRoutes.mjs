@@ -3,6 +3,7 @@ import express from "express";
 import {
     recordBoothVisit,
     getMyBoothVisits,
+    getManagedBoothVisits,
     getBoothVisitById
 } from "../controllers/boothVisitController.mjs";
 
@@ -31,6 +32,13 @@ router.post(
 // GET MY BOOTH VISITS
 // ATTENDEE
 // ==========================================
+
+router.get(
+    "/managed",
+    authMiddleware,
+    authorizeRoles("admin", "organizer", "exhibitor"),
+    getManagedBoothVisits
+);
 
 router.get(
     "/my",

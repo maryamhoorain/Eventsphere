@@ -1,0 +1,63 @@
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(37, 99, 235, .22), transparent 34rem),
+    #071126;
+  color: #fff;
+}
+
+.splash-screen__glow {
+  position: absolute;
+  width: min(70vw, 38rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56, 189, 248, .2), transparent 68%);
+  filter: blur(12px);
+}
+
+.splash-screen__content {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.splash-screen__logo-wrap {
+  width: clamp(7rem, 18vw, 10rem);
+  aspect-ratio: 1;
+  margin-bottom: 1.2rem;
+  border: 1px solid rgba(125, 211, 252, .45);
+  border-radius: 2rem;
+  padding: .55rem;
+  background: rgba(15, 23, 42, .58);
+  box-shadow: 0 0 55px rgba(37, 99, 235, .32);
+}
+
+.splash-screen__logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 1.5rem;
+  object-fit: cover;
+}
+
+.splash-screen__wordmark {
+  display: flex;
+  gap: .02em;
+  font: 700 clamp(2rem, 6vw, 4rem) / 1 var(--font-display);
+  letter-spacing: -.055em;
+}
+
+.splash-screen__wordmark span { display: inline-block; }
+.splash-screen__accent { color: var(--accent); }
+.splash-screen p {
+  margin: 1rem 0 0;
+  color: rgba(226, 232, 240, .68);
+  font-size: clamp(.72rem, 1.8vw, .9rem);
+  letter-spacing: .08em;
+}

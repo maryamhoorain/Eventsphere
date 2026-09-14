@@ -1,4 +1,6 @@
 import Session from "../models/Session.mjs";
+import SessionRegistration from "../models/SessionRegistration.mjs";
+import Favorite from "../models/Favorite.mjs";
 import Event from "../models/Event.mjs";
 import authorizeEventAccess, {
   handleEventAccessError,
@@ -34,6 +36,11 @@ const createSession = async (req, res) => {
       return res.status(400).json({
         message: "Invalid session date",
       });
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (sessionDate < today) {
+      return res.status(400).json({ message: "Session date cannot be in the past" });
     }
 
     const sessionDay = sessionDate.toISOString().split("T")[0];
@@ -216,6 +223,11 @@ const updateSession = async (req, res) => {
         message: "Invalid session date",
       });
     }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (newDate < today) {
+      return res.status(400).json({ message: "Session date cannot be in the past" });
+    }
 
     const sessionDay = newDate.toISOString().split("T")[0];
     const eventStartDay = new Date(event.startDate).toISOString().split("T")[0];
@@ -279,8 +291,11 @@ const deleteSession = async (req, res) => {
 
     await authorizeEventAccess(req.user, session.event);
 
-    session.isActive = false;
-    await session.save();
+    await Promise.all([
+      SessionRegistration.deleteMany({ session: session._id }),
+      Favorite.deleteMany({ session: session._id }),
+      Session.deleteOne({ _id: session._id }),
+    ]);
 
     res.status(200).json({
       message: "Session deleted successfully",

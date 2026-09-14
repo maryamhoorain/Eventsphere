@@ -24,6 +24,32 @@ const boothSchema = new mongoose.Schema(
             trim: true
         },
 
+        floor: {
+            type: Number,
+            min: 1,
+            enum: [1, 2],
+            default: 1
+        },
+
+        positionX: {
+            type: Number,
+            min: 0,
+            max: 100,
+            default: null
+        },
+
+        positionY: {
+            type: Number,
+            min: 0,
+            max: 100,
+            default: null
+        },
+
+        mapCoordinates: {
+            x: { type: Number, default: null },
+            y: { type: Number, default: null }
+        },
+
         price: {
             type: Number,
             default: 0,
@@ -40,10 +66,39 @@ const boothSchema = new mongoose.Schema(
             type: String,
             enum: [
                 "available",
+                "pending",
                 "reserved",
-                "occupied"
+                "occupied",
+                "rejected"
             ],
             default: "available"
+        },
+
+        requestedAt: {
+            type: Date,
+            default: null
+        },
+
+        approvedAt: {
+            type: Date,
+            default: null
+        },
+
+        approvedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null
+        },
+
+        rejectedAt: {
+            type: Date,
+            default: null
+        },
+
+        rejectedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            default: null
         }
     },
     {

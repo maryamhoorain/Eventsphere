@@ -25,7 +25,17 @@ const getAdminDashboard = async (req, res) => {
             upcomingEvents,
             totalRegistrations,
             pendingApplications,
-            pendingOrganizerApplications
+            pendingOrganizerApplications,
+            totalSessions,
+            totalBooths,
+            totalBoothVisits,
+            totalFeedback,
+            averageRating,
+            usersByRole,
+            eventsByStatus,
+            registrationsByStatus,
+            applicationsByStatus,
+            boothsByStatus
         ] = await Promise.all([
 
             User.countDocuments(),
@@ -72,7 +82,49 @@ const getAdminDashboard = async (req, res) => {
 
             OrganizerApplication.countDocuments({
                 status: "pending"
-            })
+            }),
+
+            Session.countDocuments(),
+
+            Booth.countDocuments(),
+
+            BoothVisit.countDocuments(),
+
+            Feedback.countDocuments(),
+
+            Feedback.aggregate([
+                { $group: { _id: null, average: { $avg: "$rating" } } }
+            ]),
+
+            User.aggregate([
+                { $group: { _id: "$role", count: { $sum: 1 } } },
+                { $project: { _id: 0, label: "$_id", value: "$count" } },
+                { $sort: { label: 1 } }
+            ]),
+
+            Event.aggregate([
+                { $group: { _id: "$status", count: { $sum: 1 } } },
+                { $project: { _id: 0, label: "$_id", value: "$count" } },
+                { $sort: { label: 1 } }
+            ]),
+
+            Registration.aggregate([
+                { $group: { _id: "$status", count: { $sum: 1 } } },
+                { $project: { _id: 0, label: "$_id", value: "$count" } },
+                { $sort: { label: 1 } }
+            ]),
+
+            ExhibitorParticipation.aggregate([
+                { $group: { _id: "$status", count: { $sum: 1 } } },
+                { $project: { _id: 0, label: "$_id", value: "$count" } },
+                { $sort: { label: 1 } }
+            ]),
+
+            Booth.aggregate([
+                { $group: { _id: "$status", count: { $sum: 1 } } },
+                { $project: { _id: 0, label: "$_id", value: "$count" } },
+                { $sort: { label: 1 } }
+            ])
         ]);
 
         res.status(200).json({
@@ -93,7 +145,19 @@ const getAdminDashboard = async (req, res) => {
                 totalRegistrations,
 
                 pendingApplications,
-                pendingOrganizerApplications
+                pendingOrganizerApplications,
+                totalSessions,
+                totalBooths,
+                totalBoothVisits,
+                totalFeedback,
+                averageRating: Number(averageRating[0]?.average || 0).toFixed(2)
+            },
+            charts: {
+                usersByRole,
+                eventsByStatus,
+                registrationsByStatus,
+                applicationsByStatus,
+                boothsByStatus
             }
         });
 

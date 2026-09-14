@@ -41,7 +41,7 @@ router.get("/:id", getEventById);
 router.patch(
   "/:id/publish",
   authMiddleware,
-  authorizeRoles("admin", "organizer"),
+  authorizeRoles("admin"),
   publishEvent
 );
 

@@ -3,6 +3,7 @@ import express from "express";
 import {
     applyAsExhibitor,
     getApplications,
+    getMyApplication,
     approveApplication,
     rejectApplication
 } from "../controllers/exhibitorController.mjs";
@@ -21,6 +22,13 @@ router.post(
 );
 
 // Admin / Organizer
+router.get(
+    "/my",
+    authMiddleware,
+    authorizeRoles("attendee", "exhibitor"),
+    getMyApplication
+);
+
 router.get(
     "/applications",
     authMiddleware,
