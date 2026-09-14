@@ -37,6 +37,36 @@ router.post(
 );
 
 // ======================================================
+// VERIFY EVENT TICKET
+// ADMIN / ORGANIZER
+// ======================================================
+
+router.post(
+  "/verify-ticket",
+  authMiddleware,
+  authorizeRoles(
+    "admin",
+    "organizer"
+  ),
+  verifyTicket
+);
+
+// ======================================================
+// CHECK-IN ATTENDEE
+// ADMIN / ORGANIZER
+// ======================================================
+
+router.post(
+  "/check-in",
+  authMiddleware,
+  authorizeRoles(
+    "admin",
+    "organizer"
+  ),
+  checkInAttendee
+);
+
+// ======================================================
 // GET MY EVENT REGISTRATIONS
 // ATTENDEE
 // ======================================================
@@ -87,34 +117,6 @@ router.get(
   getEventRegistrations
 );
 
-// ======================================================
-// VERIFY EVENT TICKET
-// ADMIN / ORGANIZER
-// ======================================================
 
-router.post(
-  "/verify-ticket",
-  authMiddleware,
-  authorizeRoles(
-    "admin",
-    "organizer"
-  ),
-  verifyTicket
-);
-
-// ======================================================
-// CHECK-IN ATTENDEE
-// ADMIN / ORGANIZER
-// ======================================================
-
-router.post(
-  "/check-in",
-  authMiddleware,
-  authorizeRoles(
-    "admin",
-    "organizer"
-  ),
-  checkInAttendee
-);
 
 export default router;

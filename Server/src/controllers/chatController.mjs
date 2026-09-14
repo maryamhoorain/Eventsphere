@@ -58,12 +58,11 @@ const createConversation = async (req, res) => {
     const currentUserRole = req.user.role;
     const participantRole = participant.role;
 
-    const staffRoles = ["admin", "organizer"];
+    const chatRoles = ["admin", "organizer", "exhibitor"];
 
     const allowed =
-      (currentUserRole === "admin" && participantRole === "exhibitor") ||
-      (currentUserRole === "exhibitor" &&
-        (participantRole === "admin" || participantRole === "exhibitor"));
+      chatRoles.includes(currentUserRole) &&
+      chatRoles.includes(participantRole);
 
     if (!allowed) {
       return res.status(403).json({
@@ -131,17 +130,20 @@ const createConversation = async (req, res) => {
 const getChatContacts = async (req, res) => {
   try {
     const role = req.user.role;
-    const roles = role === "attendee"
-      ? ["admin"]
-      : role === "admin"
-        ? ["admin", "organizer", "exhibitor", "attendee"]
-        : ["admin", "organizer", "exhibitor"];
+    const roles =
+      role === "attendee"
+        ? ["admin"]
+        : role === "admin"
+          ? ["admin", "organizer", "exhibitor", "attendee"]
+          : ["admin", "organizer", "exhibitor"];
 
     const contacts = await User.find({
       _id: { $ne: req.user._id },
       role: { $in: roles },
       isActive: true,
-    }).select("_id name email role").sort({ name: 1 });
+    })
+      .select("_id name email role")
+      .sort({ name: 1 });
 
     return res.status(200).json({ contacts });
   } catch (error) {
@@ -743,7 +745,7 @@ const deleteMessage = async (req, res) => {
       _id: message._id,
       conversation: conversationId,
       sender: message.sender,
-      messageType: message.messageType,
+      messageFType: message.messageType,
       isDeleted: true,
       deletedAt: message.deletedAt,
     });
