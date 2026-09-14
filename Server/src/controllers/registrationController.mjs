@@ -1020,8 +1020,7 @@ const verifyTicket = async (
   res
 ) => {
   try {
-    const { ticketCode } =
-      req.body;
+    const ticketCode = String(req.body?.ticketCode || "").trim().toUpperCase();
 
     if (!ticketCode) {
       return res.status(400).json({

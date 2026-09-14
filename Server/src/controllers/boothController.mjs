@@ -343,8 +343,9 @@ const getEventBoothMap = async (req, res) => {
     }
     const event = await Event.findOne({
       _id: req.params.eventId,
-      status: "published",
-      isPublished: true,
+      ...(req.user.role === "exhibitor"
+        ? { status: "published", isPublished: true }
+        : {}),
     });
     if (!event) return res.status(404).json({ message: "Published event not found" });
 

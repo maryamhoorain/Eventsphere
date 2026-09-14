@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { endpoints } from '../../api/client';
@@ -42,7 +43,7 @@ export default function Booths() {
           const events = eventsResponse?.events || [];
           setEvents(events);
           setSelectedEvent((current) => current || events[0]?._id || events[0]?.id || '');
-          const firstEvent = events[0];
+          const firstEvent = events.find((event) => (event._id || event.id) === (requestedEventId || selectedEvent)) || events[0];
           if (!firstEvent) {
             setBooths([]);
             return;

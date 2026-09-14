@@ -21,7 +21,7 @@ export default function About() {
       <section className="container about-page" style={{ position: 'relative', overflow: 'hidden', paddingTop: 112, paddingBottom: 32 }}>
         <div style={{ maxWidth: 640, position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'inline-block', border: '1px solid rgba(56,189,248,0.3)', background: 'rgba(37,99,235,0.15)', borderRadius: 999, padding: '4px 12px', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 20 }}>About EventSphere</div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.25rem, 6vw, 3.5rem)', lineHeight: 1.05, fontWeight: 800, color: '#fff', margin: 0 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 5vw, 3rem)', lineHeight: 1.05, fontWeight: 800, color: '#fff', margin: 0 }}>
             One console for the whole expo floor.
           </h1>
           <p style={{ marginTop: 20, color: 'rgba(255,255,255,0.65)', fontSize: 17, lineHeight: 1.6, maxWidth: 540 }}>

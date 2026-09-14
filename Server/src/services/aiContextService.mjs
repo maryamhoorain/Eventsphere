@@ -575,6 +575,21 @@ const getOrganizerRegistrationStats = async (
     ]);
 };
 
+const getEventRegistrationDetails = async (eventIds) => {
+    if (eventIds.length === 0) {
+        return [];
+    }
+
+    return await Registration.find({
+        event: { $in: eventIds },
+    })
+        .populate("event", "title")
+        .populate("attendee", "name email")
+        .select("event attendee status registrationDate checkedInAt")
+        .sort({ registrationDate: -1 })
+        .lean();
+};
+
 // ------------------------------------------------------
 // Exhibitor statistics
 // ------------------------------------------------------
@@ -997,6 +1012,7 @@ const getOrganizerContext = async (userId) => {
 
     const [
         registrationStats,
+        registrationDetails,
         exhibitorStats,
         boothStats,
         boothVisitStats,
@@ -1004,6 +1020,7 @@ const getOrganizerContext = async (userId) => {
         feedbackStats,
     ] = await Promise.all([
         getOrganizerRegistrationStats(eventIds),
+        getEventRegistrationDetails(eventIds),
         getOrganizerExhibitorStats(eventIds),
         getOrganizerBoothStats(eventIds),
         getOrganizerBoothVisitStats(eventIds),
@@ -1014,6 +1031,7 @@ const getOrganizerContext = async (userId) => {
     return {
         events,
         registrationStats,
+        registrationDetails,
         exhibitorStats,
         boothStats,
         boothVisitStats,
@@ -1042,6 +1060,7 @@ const getAdminContext = async () => {
 
     const [
         registrationStats,
+        registrationDetails,
         exhibitorStats,
         boothStats,
         boothVisitStats,
@@ -1049,6 +1068,7 @@ const getAdminContext = async () => {
         feedbackStats,
     ] = await Promise.all([
         getAdminRegistrationStats(),
+        getEventRegistrationDetails(events.map((event) => event._id)),
         getAdminExhibitorStats(),
         getAdminBoothStats(),
         getAdminBoothVisitStats(),
@@ -1059,6 +1079,7 @@ const getAdminContext = async () => {
     return {
         events,
         registrationStats,
+        registrationDetails,
         exhibitorStats,
         boothStats,
         boothVisitStats,
@@ -1751,6 +1772,8 @@ const buildAIContext = async ({
                 context.private = {
                     registrationStats:
                         organizerContext.registrationStats,
+                    registrationDetails:
+                        organizerContext.registrationDetails,
                 };
 
                 break;
@@ -1809,6 +1832,9 @@ const buildAIContext = async ({
                     registrationStats:
                         organizerContext.registrationStats,
 
+                    registrationDetails:
+                        organizerContext.registrationDetails,
+
                     exhibitorStats:
                         organizerContext.exhibitorStats,
 
@@ -1865,6 +1891,9 @@ const buildAIContext = async ({
                 context.private = {
                     registrationStats:
                         adminContext.registrationStats,
+
+                    registrationDetails:
+                        adminContext.registrationDetails,
                 };
 
                 break;

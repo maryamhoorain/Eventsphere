@@ -7,6 +7,8 @@ import { useSession } from '../../store/session';
 export default function BoothVisits() {
   const user = useSession((s) => s.user);
   const role = user?.role;
+  const userId = user?.id;
+  const companyName = user?.companyName;
   const booths = useOps((s) => s.booths);
   const events = useOps((s) => s.events);
   const boothVisits = useOps((s) => s.boothVisits);
@@ -21,16 +23,20 @@ export default function BoothVisits() {
     }).catch(() => { if (active) setOwnedEventIds(new Set()); });
     return () => { active = false; };
   }, [role]);
-  const mineBooths = role === 'exhibitor' ? booths.filter((b) => b.exhibitorId === user.id || b.exhibitor === user.companyName) : booths;
+  const mineBooths = useMemo(() => role === 'exhibitor'
+    ? booths.filter((b) => b.exhibitorId === userId || b.exhibitor === companyName || b.exhibitor?._id === userId)
+    : booths, [role, booths, userId, companyName]);
   const visibleBooths = role === 'organizer'
     ? booths.filter((booth) => ownedEventIds?.has(booth.eventId || booth.event?._id || booth.event?.id))
     : booths;
   const [managedVisits, setManagedVisits] = useState([]);
   const databaseVisits = ['admin', 'organizer', 'exhibitor'].includes(role) ? managedVisits : boothVisits;
+  const attendeeId = userId;
   const visits = useMemo(() => role === 'attendee'
-    ? databaseVisits.filter((v) => v.attendeeId === user.id)
-    : databaseVisits, [role, databaseVisits, user?.id]);
-  const [boothId, setBoothId] = useState(mineBooths[0]?.id || '');
+    ? databaseVisits.filter((v) => v.attendeeId === attendeeId)
+    : databaseVisits, [role, databaseVisits, attendeeId]);
+  const [boothId, setBoothId] = useState('');
+  const firstBoothId = mineBooths[0]?._id || mineBooths[0]?.id || '';
   const [code, setCode] = useState('');
   const [rateId, setRateId] = useState(null);
   const [rating, setRating] = useState(5);
@@ -52,15 +58,15 @@ export default function BoothVisits() {
           <h2 style={{ fontSize: 14, margin: '0 0 12px' }}>Record a visit</h2>
           <form style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} onSubmit={(e) => {
             e.preventDefault();
-            endpoints.boothVisits.record(boothId, code)
+            endpoints.boothVisits.record(boothId || firstBoothId, code)
               .then((response) => { toast.success(`Visit recorded for ${response.visit?.attendee?.name || 'attendee'}`); setCode(''); setManagedVisits((current) => [response.visit, ...current]); })
               .catch((error) => toast.error(error.message || 'Unable to record visit.'));
           }}>
-            <select className="input-light" style={{ width: 'auto' }} value={boothId} onChange={(e) => setBoothId(e.target.value)}>
-              {mineBooths.map((b) => <option key={b.id} value={b.id}>{b.boothNumber}</option>)}
+            <select className="input-light" style={{ width: 'auto' }} value={boothId || firstBoothId} onChange={(e) => setBoothId(e.target.value)}>
+              {mineBooths.map((b) => <option key={b._id || b.id} value={b._id || b.id}>{b.boothNumber}</option>)}
             </select>
             <input className="input-light" style={{ flex: 1, minWidth: 160 }} value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ticket code" />
-            <button type="submit" className="btn btn-primary btn-sm">Record</button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={!boothId && !firstBoothId}>Record</button>
           </form>
         </div>
       )}
@@ -74,7 +80,7 @@ export default function BoothVisits() {
               return (
                 <tr key={visitId}>
                   <td>{v.attendee?.name || v.attendeeName}</td>
-                  <td>{v.booth?.boothNumber || visibleBooths.find((b) => b.id === v.boothId)?.boothNumber}</td>
+                  <td>{v.booth?.boothNumber || visibleBooths.find((b) => (b._id || b.id) === v.boothId)?.boothNumber}</td>
                   <td>{v.event?.title || events.find((e) => e.id === v.eventId)?.title}</td>
                   <td>{new Date(v.visitedAt).toLocaleString()}</td>
                   <td>

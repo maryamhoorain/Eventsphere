@@ -265,7 +265,7 @@ input, select, textarea, button { font: inherit; }
 .home-hero__copy, .home-hero__visual { position: relative; z-index: 1; }
 .home-hero__copy { max-width: 650px; }
 .home-hero__eyebrow { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid rgba(56,189,248,.28); border-radius: 999px; color: #bae6fd; background: rgba(37,99,235,.14); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-.home-hero h1 { margin: 22px 0 0; color: #fff; font: 900 clamp(3rem, 5.8vw, 5.15rem)/1.02 var(--font-display); letter-spacing: -.055em; word-spacing: .08em; }
+.home-hero h1 { margin: 22px 0 0; color: #fff; font: 900 clamp(2.65rem, 5vw, 4.45rem)/1.02 var(--font-display); letter-spacing: -.055em; word-spacing: .08em; }
 .home-hero h1 span { display: inline-block; margin-top: .08em; word-spacing: .04em; background: linear-gradient(90deg, #38bdf8, #2563eb); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .home-hero__copy > p { max-width: 540px; margin: 25px 0 0; color: #b8c7dc; font-size: 17px; line-height: 1.7; }
 .home-hero__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
@@ -307,6 +307,12 @@ input, select, textarea, button { font: inherit; }
 .assistant-modal__message.user { flex-direction: row-reverse; margin-left: auto; }
 .assistant-modal__message > span:last-child { padding: 9px 11px; border-radius: 13px 13px 13px 3px; background: rgba(255,255,255,.1); white-space: pre-wrap; }
 .assistant-modal__message.user > span:last-child { background: var(--secondary); border-radius: 13px 13px 3px 13px; }
+.assistant-answer { display: grid; gap: 8px; white-space: normal; min-width: min(100%, 280px); }
+.assistant-answer p { margin: 0; }
+.assistant-answer__title { color: #bae6fd; font-weight: 700; }
+.assistant-answer__row { display: grid; grid-template-columns: minmax(92px, .7fr) minmax(0, 1.3fr); gap: 10px; padding-top: 7px; border-top: 1px solid rgba(148,163,184,.16); }
+.assistant-answer__row strong { color: #e0f2fe; }
+.assistant-answer__row span { color: #cbd5e1; }
 .assistant-modal__avatar { display: grid; place-items: center; flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%; background: #0ea5e9; color: #fff; font-size: 11px; font-weight: 700; }
 .assistant-modal__composer { display: flex; align-items: center; gap: 6px; padding: 10px; border-top: 1px solid rgba(148,163,184,.18); background: #0b1322; }
 .assistant-modal__composer input { min-width: 0; flex: 1; border: 0; border-radius: 18px; padding: 9px 12px; outline: none; color: #fff; background: rgba(255,255,255,.1); }

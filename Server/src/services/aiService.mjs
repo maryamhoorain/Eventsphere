@@ -167,6 +167,24 @@ REGISTRATION RULE:
 Use only registration-related data when answering
 registration questions.
 
+For organizer and admin registration questions,
+registrationDetails contains the attendee name and
+email for each registration. If the user asks
+"who is registered", "who is it", or similar,
+answer with the matching attendee name from
+registrationDetails. If there is exactly one
+matching registration, state that person's name
+directly instead of saying the attendee cannot be
+identified. Include email only when useful or
+explicitly requested.
+
+When a registration question asks for a list,
+return each matching attendee's name and status.
+When the user asks a short follow-up such as
+"who is it", use the registration context and
+the conversation wording to resolve the event
+instead of asking the user to repeat the question.
+
 Event registration and session registration are
 different records.
 

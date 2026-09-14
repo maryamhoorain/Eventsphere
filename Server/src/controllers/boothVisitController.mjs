@@ -14,7 +14,7 @@ const recordBoothVisit = async (req, res) => {
     try {
 
         const { boothId } = req.params;
-        const { ticketCode } = req.body;
+        const ticketCode = String(req.body?.ticketCode || "").trim().toUpperCase();
 
         // ==========================================
         // VALIDATE TICKET CODE
@@ -143,7 +143,8 @@ const recordBoothVisit = async (req, res) => {
             await BoothVisit.create({
                 booth: booth._id,
                 event: booth.event,
-                attendee: registration.attendee._id
+                attendee: registration.attendee._id,
+                ticketCode: registration.ticketCode
             });
 
 
