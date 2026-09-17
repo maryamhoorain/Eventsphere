@@ -19,9 +19,87 @@ const transporter = nodemailer.createTransport({
 
 console.log("Email config check:", {
   emailUser: process.env.EMAIL_USER ? "Loaded" : "Missing",
-
-  emailPass: process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD ? "Loaded" : "Missing",
+  emailPass:
+    process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD
+      ? "Loaded"
+      : "Missing",
 });
+
+// ======================================================
+// PASSWORD VALIDATION
+// ======================================================
+
+const validateStrongPassword = (password) => {
+  const value = String(password || "");
+
+  if (value.length < 8) {
+    return {
+      valid: false,
+      message: "Password must be at least 8 characters long.",
+    };
+  }
+
+  if (value.length > 128) {
+    return {
+      valid: false,
+      message: "Password must not exceed 128 characters.",
+    };
+  }
+
+  if (/\s/.test(value)) {
+    return {
+      valid: false,
+      message: "Password must not contain spaces.",
+    };
+  }
+
+  if (!/[A-Z]/.test(value)) {
+    return {
+      valid: false,
+      message: "Password must contain at least one uppercase letter.",
+    };
+  }
+
+  if (!/[a-z]/.test(value)) {
+    return {
+      valid: false,
+      message: "Password must contain at least one lowercase letter.",
+    };
+  }
+
+  if (!/[0-9]/.test(value)) {
+    return {
+      valid: false,
+      message: "Password must contain at least one number.",
+    };
+  }
+
+  if (!/[!@#$%^&*(),.?":{}|<>[\]\\/'`~_+=;-]/.test(value)) {
+    return {
+      valid: false,
+      message:
+        "Password must contain at least one special character.",
+    };
+  }
+
+  return {
+    valid: true,
+    message: "Password is strong.",
+  };
+};
+
+// ======================================================
+// HTML ESCAPE HELPER
+// ======================================================
+
+const escapeHtml = (value) => {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
 
 // ======================================================
 // SEND EMAIL
@@ -30,8 +108,16 @@ console.log("Email config check:", {
 const sendEmail = async ({ to, subject, html }) => {
   console.log("Attempting to send email...");
   console.log("To:", to);
-  console.log("From:", process.env.EMAIL_USER ? "Loaded" : "Missing");
-  console.log("Password:", process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD ? "Loaded" : "Missing");
+  console.log(
+    "From:",
+    process.env.EMAIL_USER ? "Loaded" : "Missing"
+  );
+  console.log(
+    "Password:",
+    process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD
+      ? "Loaded"
+      : "Missing"
+  );
 
   const info = await transporter.sendMail({
     from: `"EventSphere" <${process.env.EMAIL_USER}>`,
@@ -47,6 +133,684 @@ const sendEmail = async ({ to, subject, html }) => {
 };
 
 // ======================================================
+// EVENTSPHERE EMAIL STYLES / VERIFICATION EMAIL
+// ======================================================
+
+const createVerificationEmail = ({
+  name,
+  verificationUrl,
+}) => {
+  const safeName = escapeHtml(name);
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>Verify your EventSphere account</title>
+</head>
+
+<body style="
+  margin: 0;
+  padding: 0;
+  background-color: #070d1d;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #ffffff;
+">
+
+  <table
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    style="
+      background-color: #070d1d;
+      margin: 0;
+      padding: 40px 16px;
+    "
+  >
+    <tr>
+      <td align="center">
+
+        <table
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="
+            max-width: 600px;
+            margin: 0 auto;
+          "
+        >
+
+          <!-- BRAND -->
+          <tr>
+            <td
+              align="center"
+              style="padding: 10px 20px 28px;"
+            >
+
+              <div style="
+                font-size: 28px;
+                line-height: 34px;
+                font-weight: 700;
+                letter-spacing: 1.5px;
+                color: #ffffff;
+              ">
+                EVENT<span style="color: #35c6d9;">SPHERE</span>
+              </div>
+
+              <div style="
+                margin-top: 8px;
+                font-size: 12px;
+                line-height: 18px;
+                letter-spacing: 1px;
+                color: #8190aa;
+              ">
+                EVENTS • CONNECTIONS • EXPERIENCE
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- MAIN CARD -->
+          <tr>
+            <td>
+
+              <table
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+                style="
+                  background-color: #111a2d;
+                  border: 1px solid #263652;
+                  border-radius: 16px;
+                  overflow: hidden;
+                "
+              >
+
+                <!-- ACCENT -->
+                <tr>
+                  <td
+                    style="
+                      height: 3px;
+                      background-color: #35c6d9;
+                      font-size: 0;
+                      line-height: 0;
+                    "
+                  >
+                    &nbsp;
+                  </td>
+                </tr>
+
+                <!-- CONTENT -->
+                <tr>
+                  <td
+                    style="
+                      padding: 42px 40px 40px;
+                    "
+                  >
+
+                    <!-- ICON -->
+                    <table
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                    >
+                      <tr>
+                        <td align="center">
+
+                          <div style="
+                            width: 64px;
+                            height: 64px;
+                            line-height: 64px;
+                            border-radius: 50%;
+                            background-color: #123843;
+                            color: #35c6d9;
+                            font-size: 28px;
+                            font-weight: 700;
+                            text-align: center;
+                          ">
+                            ✓
+                          </div>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- HEADING -->
+                    <h1 style="
+                      margin: 28px 0 12px;
+                      text-align: center;
+                      font-size: 26px;
+                      line-height: 34px;
+                      font-weight: 700;
+                      color: #ffffff;
+                    ">
+                      Verify your email
+                    </h1>
+
+                    <!-- GREETING -->
+                    <p style="
+                      margin: 0 0 18px;
+                      font-size: 15px;
+                      line-height: 25px;
+                      color: #d8deea;
+                    ">
+                      Hi ${safeName},
+                    </p>
+
+                    <p style="
+                      margin: 0 0 18px;
+                      font-size: 15px;
+                      line-height: 25px;
+                      color: #aeb9cc;
+                    ">
+                      Welcome to
+                      <strong style="color: #ffffff;">
+                        EventSphere
+                      </strong>.
+                      Your account has been created successfully.
+                    </p>
+
+                    <p style="
+                      margin: 0 0 28px;
+                      font-size: 15px;
+                      line-height: 25px;
+                      color: #aeb9cc;
+                    ">
+                      Please verify your email address to activate
+                      your account and start exploring events,
+                      sessions, exhibitors, and more.
+                    </p>
+
+                    <!-- BUTTON -->
+                    <table
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                    >
+                      <tr>
+                        <td align="center">
+
+                          <a
+                            href="${verificationUrl}"
+                            target="_blank"
+                            style="
+                              display: inline-block;
+                              padding: 14px 30px;
+                              background-color: #35c6d9;
+                              color: #07101f;
+                              text-decoration: none;
+                              font-size: 15px;
+                              font-weight: 700;
+                              border-radius: 8px;
+                              letter-spacing: 0.2px;
+                            "
+                          >
+                            Verify Email
+                          </a>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- EXPIRY -->
+                    <table
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                      style="
+                        margin-top: 30px;
+                        background-color: #0b1426;
+                        border: 1px solid #24324a;
+                        border-radius: 10px;
+                      "
+                    >
+                      <tr>
+                        <td
+                          style="
+                            padding: 14px 16px;
+                            font-size: 13px;
+                            line-height: 20px;
+                            color: #8f9bb0;
+                            text-align: center;
+                          "
+                        >
+                          This verification link expires in
+                          <strong style="color: #dce3ef;">
+                            24 hours
+                          </strong>.
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- FALLBACK LINK -->
+                    <p style="
+                      margin: 28px 0 8px;
+                      font-size: 12px;
+                      line-height: 19px;
+                      color: #718099;
+                    ">
+                      If the button doesn't work, copy and paste
+                      this link into your browser:
+                    </p>
+
+                    <p style="
+                      margin: 0;
+                      word-break: break-all;
+                      font-size: 12px;
+                      line-height: 19px;
+                    ">
+                      <a
+                        href="${verificationUrl}"
+                        style="
+                          color: #35c6d9;
+                          text-decoration: none;
+                        "
+                      >
+                        ${verificationUrl}
+                      </a>
+                    </p>
+
+                  </td>
+                </tr>
+
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td
+              align="center"
+              style="padding: 28px 20px 10px;"
+            >
+
+              <p style="
+                margin: 0 0 8px;
+                font-size: 12px;
+                line-height: 18px;
+                color: #69768d;
+              ">
+                If you did not create an EventSphere account,
+                you can safely ignore this email.
+              </p>
+
+              <p style="
+                margin: 0;
+                font-size: 12px;
+                line-height: 18px;
+                color: #4f5c72;
+              ">
+                © ${new Date().getFullYear()} EventSphere
+                &nbsp;•&nbsp;
+                Event Management Platform
+              </p>
+
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
+  `;
+};
+
+// ======================================================
+// EVENTSPHERE PASSWORD RESET EMAIL
+// ======================================================
+
+const createPasswordResetEmail = ({
+  name,
+  resetUrl,
+}) => {
+  const safeName = escapeHtml(name);
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>Reset your EventSphere password</title>
+</head>
+
+<body style="
+  margin: 0;
+  padding: 0;
+  background-color: #070d1d;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #ffffff;
+">
+
+  <table
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    style="
+      background-color: #070d1d;
+      margin: 0;
+      padding: 40px 16px;
+    "
+  >
+    <tr>
+      <td align="center">
+
+        <table
+          width="100%"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="
+            max-width: 600px;
+            margin: 0 auto;
+          "
+        >
+
+          <!-- BRAND -->
+          <tr>
+            <td
+              align="center"
+              style="padding: 10px 20px 28px;"
+            >
+
+              <div style="
+                font-size: 28px;
+                line-height: 34px;
+                font-weight: 700;
+                letter-spacing: 1.5px;
+                color: #ffffff;
+              ">
+                EVENT<span style="color: #35c6d9;">SPHERE</span>
+              </div>
+
+              <div style="
+                margin-top: 8px;
+                font-size: 12px;
+                line-height: 18px;
+                letter-spacing: 1px;
+                color: #8190aa;
+              ">
+                EVENTS • CONNECTIONS • EXPERIENCE
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- MAIN CARD -->
+          <tr>
+            <td>
+
+              <table
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+                style="
+                  background-color: #111a2d;
+                  border: 1px solid #263652;
+                  border-radius: 16px;
+                  overflow: hidden;
+                "
+              >
+
+                <!-- ACCENT -->
+                <tr>
+                  <td
+                    style="
+                      height: 3px;
+                      background-color: #35c6d9;
+                      font-size: 0;
+                      line-height: 0;
+                    "
+                  >
+                    &nbsp;
+                  </td>
+                </tr>
+
+                <!-- CONTENT -->
+                <tr>
+                  <td
+                    style="
+                      padding: 42px 40px 40px;
+                    "
+                  >
+
+                    <!-- ICON -->
+                    <table
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                    >
+                      <tr>
+                        <td align="center">
+
+                          <div style="
+                            width: 64px;
+                            height: 64px;
+                            line-height: 64px;
+                            border-radius: 50%;
+                            background-color: #123843;
+                            color: #35c6d9;
+                            font-size: 27px;
+                            font-weight: 700;
+                            text-align: center;
+                          ">
+                            ↻
+                          </div>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- HEADING -->
+                    <h1 style="
+                      margin: 28px 0 12px;
+                      text-align: center;
+                      font-size: 26px;
+                      line-height: 34px;
+                      font-weight: 700;
+                      color: #ffffff;
+                    ">
+                      Reset your password
+                    </h1>
+
+                    <!-- GREETING -->
+                    <p style="
+                      margin: 0 0 18px;
+                      font-size: 15px;
+                      line-height: 25px;
+                      color: #d8deea;
+                    ">
+                      Hi ${safeName},
+                    </p>
+
+                    <p style="
+                      margin: 0 0 18px;
+                      font-size: 15px;
+                      line-height: 25px;
+                      color: #aeb9cc;
+                    ">
+                      We received a request to reset the password
+                      for your
+                      <strong style="color: #ffffff;">
+                        EventSphere
+                      </strong>
+                      account.
+                    </p>
+
+                    <p style="
+                      margin: 0 0 28px;
+                      font-size: 15px;
+                      line-height: 25px;
+                      color: #aeb9cc;
+                    ">
+                      Click the button below to create a new
+                      password for your account.
+                    </p>
+
+                    <!-- BUTTON -->
+                    <table
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                    >
+                      <tr>
+                        <td align="center">
+
+                          <a
+                            href="${resetUrl}"
+                            target="_blank"
+                            style="
+                              display: inline-block;
+                              padding: 14px 30px;
+                              background-color: #35c6d9;
+                              color: #07101f;
+                              text-decoration: none;
+                              font-size: 15px;
+                              font-weight: 700;
+                              border-radius: 8px;
+                              letter-spacing: 0.2px;
+                            "
+                          >
+                            Reset Password
+                          </a>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- EXPIRY -->
+                    <table
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                      style="
+                        margin-top: 30px;
+                        background-color: #0b1426;
+                        border: 1px solid #24324a;
+                        border-radius: 10px;
+                      "
+                    >
+                      <tr>
+                        <td
+                          style="
+                            padding: 14px 16px;
+                            font-size: 13px;
+                            line-height: 20px;
+                            color: #8f9bb0;
+                            text-align: center;
+                          "
+                        >
+                          This password reset link expires in
+                          <strong style="color: #dce3ef;">
+                            15 minutes
+                          </strong>.
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- FALLBACK LINK -->
+                    <p style="
+                      margin: 28px 0 8px;
+                      font-size: 12px;
+                      line-height: 19px;
+                      color: #718099;
+                    ">
+                      If the button doesn't work, copy and paste
+                      this link into your browser:
+                    </p>
+
+                    <p style="
+                      margin: 0;
+                      word-break: break-all;
+                      font-size: 12px;
+                      line-height: 19px;
+                    ">
+                      <a
+                        href="${resetUrl}"
+                        style="
+                          color: #35c6d9;
+                          text-decoration: none;
+                        "
+                      >
+                        ${resetUrl}
+                      </a>
+                    </p>
+
+                  </td>
+                </tr>
+
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td
+              align="center"
+              style="padding: 28px 20px 10px;"
+            >
+
+              <p style="
+                margin: 0 0 8px;
+                font-size: 12px;
+                line-height: 18px;
+                color: #69768d;
+              ">
+                If you did not request a password reset,
+                you can safely ignore this email.
+              </p>
+
+              <p style="
+                margin: 0;
+                font-size: 12px;
+                line-height: 18px;
+                color: #4f5c72;
+              ">
+                © ${new Date().getFullYear()} EventSphere
+                &nbsp;•&nbsp;
+                Event Management Platform
+              </p>
+
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
+  `;
+};
+
+// ======================================================
 // REGISTER USER
 // ======================================================
 
@@ -55,7 +819,7 @@ const registerUser = async (req, res) => {
     const { name, email, password, phone } = req.body;
 
     // ==========================================
-    // VALIDATION
+    // REQUIRED FIELDS
     // ==========================================
 
     if (!name || !email || !password) {
@@ -64,11 +828,30 @@ const registerUser = async (req, res) => {
       });
     }
 
-    if (password.length < 6) {
+    // ==========================================
+    // STRONG PASSWORD VALIDATION
+    // ==========================================
+
+    const passwordValidation = validateStrongPassword(password);
+
+    if (!passwordValidation.valid) {
       return res.status(400).json({
-        message: "Password must be at least 6 characters long",
+        message: passwordValidation.message,
+        passwordRequirements: {
+          minLength: 8,
+          maxLength: 128,
+          uppercase: true,
+          lowercase: true,
+          number: true,
+          specialCharacter: true,
+          spacesAllowed: false,
+        },
       });
     }
+
+    // ==========================================
+    // NORMALIZE EMAIL
+    // ==========================================
 
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -104,7 +887,8 @@ const registerUser = async (req, res) => {
       .digest("hex");
 
     // Token expires after 24 hours
-    const verificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+    const verificationExpires =
+      Date.now() + 24 * 60 * 60 * 1000;
 
     // ==========================================
     // CREATE USER
@@ -112,21 +896,13 @@ const registerUser = async (req, res) => {
 
     const user = await User.create({
       name,
-
       email: normalizedEmail,
-
       password: hashedPassword,
-
       role: "attendee",
-
       phone,
-
       isActive: true,
-
       emailVerified: false,
-
       emailVerificationToken: hashedVerificationToken,
-
       emailVerificationExpires: verificationExpires,
     });
 
@@ -134,8 +910,11 @@ const registerUser = async (req, res) => {
     // VERIFICATION LINK
     // ==========================================
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const verificationUrl = `${frontendUrl}/verify-email/${verificationToken}`;
+    const frontendUrl =
+      process.env.FRONTEND_URL || "http://localhost:5173";
+
+    const verificationUrl =
+      `${frontendUrl}/verify-email/${verificationToken}`;
 
     // ==========================================
     // SEND VERIFICATION EMAIL
@@ -147,93 +926,51 @@ const registerUser = async (req, res) => {
       await sendEmail({
         to: user.email,
         subject: "Verify your EventSphere account",
-        html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-
-                    <h2>Welcome to EventSphere!</h2>
-
-                    <p>
-                        Hi ${user.name},
-                    </p>
-
-                    <p>
-                        Thank you for registering with EventSphere.
-                        Please verify your email address by clicking
-                        the button below.
-                    </p>
-
-                    <p style="margin: 30px 0;">
-
-                        <a
-                            href="${verificationUrl}"
-                            style="
-                                background-color: #2563eb;
-                                color: white;
-                                padding: 12px 20px;
-                                text-decoration: none;
-                                border-radius: 6px;
-                                display: inline-block;
-                            "
-                        >
-                            Verify Email
-                        </a>
-
-                    </p>
-
-                    <p>
-                        This verification link will expire in
-                        <strong>24 hours</strong>.
-                    </p>
-
-                    <p>
-                        If you did not create an EventSphere account,
-                        you can ignore this email.
-                    </p>
-
-                    <p>
-                        Regards,<br>
-                        EventSphere Team
-                    </p>
-
-                </div>
-        `,
+        html: createVerificationEmail({
+          name: user.name,
+          verificationUrl,
+        }),
       });
     } catch (emailError) {
       verificationEmailSent = false;
-      console.error("Verification email delivery failed:", emailError.message);
+
+      console.error(
+        "Verification email delivery failed:",
+        emailError.message
+      );
     }
 
     // ==========================================
     // RESPONSE
     // ==========================================
 
-    res.status(201).json({
+    return res.status(201).json({
       message: verificationEmailSent
         ? "Registration successful. Please check your email to verify your account."
         : "Account created, but the verification email could not be sent. Use the local verification link to activate this account.",
 
       verificationEmailSent,
 
-      ...(verificationEmailSent || process.env.NODE_ENV === "production"
+      ...(verificationEmailSent ||
+      process.env.NODE_ENV === "production"
         ? {}
         : { verificationUrl }),
 
       user: {
         id: user._id,
-
         name: user.name,
-
         email: user.email,
-
         role: user.role,
-
         emailVerified: user.emailVerified,
       },
     });
   } catch (error) {
-    console.error("Registration error:", error.message);
+    console.error(
+      "Registration error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
@@ -247,6 +984,10 @@ const verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
 
+    // ==========================================
+    // VALIDATION
+    // ==========================================
+
     if (!token) {
       return res.status(400).json({
         message: "Verification token is required",
@@ -257,10 +998,13 @@ const verifyEmail = async (req, res) => {
     // HASH TOKEN
     // ==========================================
 
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
 
     // ==========================================
-    // FIND USER
+    // FIND USER WITH VALID TOKEN
     // ==========================================
 
     const user = await User.findOne({
@@ -273,7 +1017,8 @@ const verifyEmail = async (req, res) => {
 
     if (!user) {
       return res.status(400).json({
-        message: "Email verification token is invalid or expired",
+        message:
+          "Email verification token is invalid or expired",
       });
     }
 
@@ -282,67 +1027,161 @@ const verifyEmail = async (req, res) => {
     // ==========================================
 
     user.emailVerified = true;
-
     user.emailVerificationToken = undefined;
-
     user.emailVerificationExpires = undefined;
 
     await user.save();
 
-    res.status(200).json({
-      message: "Email verified successfully. You can now log in.",
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
+    return res.status(200).json({
+      message:
+        "Email verified successfully. You can now log in.",
     });
   } catch (error) {
-    console.error("Email verification error:", error.message);
+    console.error(
+      "Email verification error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
 };
 
+// ======================================================
+// RESEND VERIFICATION EMAIL
+// ======================================================
+
 const resendVerificationEmail = async (req, res) => {
   try {
-    const normalizedEmail = String(req.body?.email || "").toLowerCase().trim();
+    const normalizedEmail = String(
+      req.body?.email || ""
+    )
+      .toLowerCase()
+      .trim();
+
+    // ==========================================
+    // VALIDATION
+    // ==========================================
+
     if (!normalizedEmail) {
-      return res.status(400).json({ message: "Email is required" });
+      return res.status(400).json({
+        message: "Email is required",
+      });
     }
 
-    const user = await User.findOne({ email: normalizedEmail });
+    // ==========================================
+    // FIND USER
+    // ==========================================
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    // Don't reveal whether an account exists
     if (!user) {
-      return res.status(200).json({ message: "If the account exists, a verification email has been sent." });
-    }
-    if (user.emailVerified) {
-      return res.status(400).json({ message: "This email is already verified. You can sign in." });
+      return res.status(200).json({
+        message:
+          "If the account exists, a verification email has been sent.",
+      });
     }
 
-    const verificationToken = crypto.randomBytes(32).toString("hex");
-    user.emailVerificationToken = crypto.createHash("sha256").update(verificationToken).digest("hex");
-    user.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+    // ==========================================
+    // CHECK ALREADY VERIFIED
+    // ==========================================
+
+    if (user.emailVerified) {
+      return res.status(400).json({
+        message:
+          "This email is already verified. You can sign in.",
+      });
+    }
+
+    // ==========================================
+    // GENERATE NEW TOKEN
+    // ==========================================
+
+    const verificationToken =
+      crypto.randomBytes(32).toString("hex");
+
+    const hashedVerificationToken =
+      crypto
+        .createHash("sha256")
+        .update(verificationToken)
+        .digest("hex");
+
+    user.emailVerificationToken =
+      hashedVerificationToken;
+
+    user.emailVerificationExpires =
+      Date.now() + 24 * 60 * 60 * 1000;
+
     await user.save();
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const verificationUrl = `${frontendUrl}/verify-email/${verificationToken}`;
+    // ==========================================
+    // VERIFICATION LINK
+    // ==========================================
+
+    const frontendUrl =
+      process.env.FRONTEND_URL ||
+      "http://localhost:5173";
+
+    const verificationUrl =
+      `${frontendUrl}/verify-email/${verificationToken}`;
+
+    // ==========================================
+    // SEND EMAIL
+    // ==========================================
+
     let verificationEmailSent = true;
+
     try {
       await sendEmail({
         to: user.email,
         subject: "Verify your EventSphere account",
-        html: `<p>Verify your EventSphere account:</p><p><a href="${verificationUrl}">Verify Email</a></p>`,
+        html: createVerificationEmail({
+          name: user.name,
+          verificationUrl,
+        }),
       });
     } catch (emailError) {
       verificationEmailSent = false;
-      console.error("Verification email delivery failed:", emailError.message);
+
+      console.error(
+        "Verification email delivery failed:",
+        emailError.message
+      );
     }
 
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
     return res.status(200).json({
-      message: verificationEmailSent ? "Verification email sent." : "Email could not be sent. Use the local verification link.",
+      message: verificationEmailSent
+        ? "Verification email sent."
+        : "Email could not be sent. Use the local verification link.",
+
       verificationEmailSent,
-      ...(verificationEmailSent || process.env.NODE_ENV === "production" ? {} : { verificationUrl }),
+
+      ...(verificationEmailSent ||
+      process.env.NODE_ENV === "production"
+        ? {}
+        : { verificationUrl }),
     });
   } catch (error) {
-    console.error("Resend verification error:", error.message);
-    return res.status(500).json({ message: "Server error" });
+    console.error(
+      "Resend verification error:",
+      error.message
+    );
+
+    return res.status(500).json({
+      message: "Server error",
+    });
   }
 };
 
@@ -364,7 +1203,8 @@ const loginUser = async (req, res) => {
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail =
+      email.toLowerCase().trim();
 
     // ==========================================
     // FIND USER
@@ -396,7 +1236,8 @@ const loginUser = async (req, res) => {
 
     if (!user.emailVerified) {
       return res.status(403).json({
-        message: "Please verify your email before logging in",
+        message:
+          "Please verify your email before logging in",
       });
     }
 
@@ -404,7 +1245,11 @@ const loginUser = async (req, res) => {
     // CHECK PASSWORD
     // ==========================================
 
-    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    const isPasswordCorrect =
+      await bcrypt.compare(
+        password,
+        user.password
+      );
 
     if (!isPasswordCorrect) {
       return res.status(401).json({
@@ -420,39 +1265,36 @@ const loginUser = async (req, res) => {
       {
         userId: user._id,
       },
-
       process.env.JWT_SECRET,
-
       {
         expiresIn: "7d",
-      },
+      }
     );
 
     // ==========================================
     // RESPONSE
     // ==========================================
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Login successful",
 
       token,
 
       user: {
         id: user._id,
-
         name: user.name,
-
         email: user.email,
-
         role: user.role,
-
         emailVerified: user.emailVerified,
       },
     });
   } catch (error) {
-    console.error("Login error:", error.message);
+    console.error(
+      "Login error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
@@ -464,13 +1306,16 @@ const loginUser = async (req, res) => {
 
 const getCurrentUser = async (req, res) => {
   try {
-    res.status(200).json({
+    return res.status(200).json({
       user: req.user,
     });
   } catch (error) {
-    console.error("Get current user error:", error.message);
+    console.error(
+      "Get current user error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
@@ -494,7 +1339,8 @@ const forgotPassword = async (req, res) => {
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail =
+      email.toLowerCase().trim();
 
     // ==========================================
     // FIND USER
@@ -519,17 +1365,20 @@ const forgotPassword = async (req, res) => {
     // GENERATE RESET TOKEN
     // ==========================================
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetToken =
+      crypto.randomBytes(32).toString("hex");
 
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(resetToken)
-      .digest("hex");
+    const hashedToken =
+      crypto
+        .createHash("sha256")
+        .update(resetToken)
+        .digest("hex");
 
     // Token expires after 15 minutes
     user.resetPasswordToken = hashedToken;
 
-    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
+    user.resetPasswordExpires =
+      Date.now() + 15 * 60 * 1000;
 
     await user.save();
 
@@ -537,8 +1386,12 @@ const forgotPassword = async (req, res) => {
     // RESET URL
     // ==========================================
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+    const frontendUrl =
+      process.env.FRONTEND_URL ||
+      "http://localhost:5173";
+
+    const resetUrl =
+      `${frontendUrl}/reset-password/${resetToken}`;
 
     // ==========================================
     // SEND RESET EMAIL
@@ -547,71 +1400,30 @@ const forgotPassword = async (req, res) => {
     await sendEmail({
       to: user.email,
 
-      subject: "Reset your EventSphere password",
+      subject:
+        "Reset your EventSphere password",
 
-      html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
-
-                    <h2>Password Reset</h2>
-
-                    <p>
-                        Hi ${user.name},
-                    </p>
-
-                    <p>
-                        We received a request to reset your
-                        EventSphere password.
-                    </p>
-
-                    <p style="margin: 30px 0;">
-
-                        <a
-                            href="${resetUrl}"
-                            style="
-                                background-color: #2563eb;
-                                color: white;
-                                padding: 12px 20px;
-                                text-decoration: none;
-                                border-radius: 6px;
-                                display: inline-block;
-                            "
-                        >
-                            Reset Password
-                        </a>
-
-                    </p>
-
-                    <p>
-                        This link will expire in
-                        <strong>15 minutes</strong>.
-                    </p>
-
-                    <p>
-                        If you did not request a password reset,
-                        you can safely ignore this email.
-                    </p>
-
-                    <p>
-                        Regards,<br>
-                        EventSphere Team
-                    </p>
-
-                </div>
-            `,
+      html: createPasswordResetEmail({
+        name: user.name,
+        resetUrl,
+      }),
     });
 
     // ==========================================
     // RESPONSE
     // ==========================================
 
-    res.status(200).json({
+    return res.status(200).json({
       message:
         "If an account with that email exists, a password reset link will be sent.",
     });
   } catch (error) {
-    console.error("Forgot password error:", error.message);
+    console.error(
+      "Forgot password error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
@@ -624,11 +1436,10 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
-
     const { password } = req.body;
 
     // ==========================================
-    // VALIDATION
+    // TOKEN VALIDATION
     // ==========================================
 
     if (!token) {
@@ -637,15 +1448,36 @@ const resetPassword = async (req, res) => {
       });
     }
 
+    // ==========================================
+    // PASSWORD REQUIRED
+    // ==========================================
+
     if (!password) {
       return res.status(400).json({
         message: "New password is required",
       });
     }
 
-    if (password.length < 6) {
+    // ==========================================
+    // STRONG PASSWORD VALIDATION
+    // ==========================================
+
+    const passwordValidation =
+      validateStrongPassword(password);
+
+    if (!passwordValidation.valid) {
       return res.status(400).json({
-        message: "Password must be at least 6 characters long",
+        message: passwordValidation.message,
+
+        passwordRequirements: {
+          minLength: 8,
+          maxLength: 128,
+          uppercase: true,
+          lowercase: true,
+          number: true,
+          specialCharacter: true,
+          spacesAllowed: false,
+        },
       });
     }
 
@@ -653,7 +1485,11 @@ const resetPassword = async (req, res) => {
     // HASH TOKEN
     // ==========================================
 
-    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+    const hashedToken =
+      crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
 
     // ==========================================
     // FIND USER WITH VALID TOKEN
@@ -669,7 +1505,8 @@ const resetPassword = async (req, res) => {
 
     if (!user) {
       return res.status(400).json({
-        message: "Password reset token is invalid or expired",
+        message:
+          "Password reset token is invalid or expired",
       });
     }
 
@@ -677,7 +1514,8 @@ const resetPassword = async (req, res) => {
     // HASH NEW PASSWORD
     // ==========================================
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword =
+      await bcrypt.hash(password, 10);
 
     user.password = hashedPassword;
 
@@ -686,19 +1524,25 @@ const resetPassword = async (req, res) => {
     // ==========================================
 
     user.resetPasswordToken = undefined;
-
     user.resetPasswordExpires = undefined;
 
     await user.save();
 
-    res.status(200).json({
+    // ==========================================
+    // RESPONSE
+    // ==========================================
+
+    return res.status(200).json({
       message:
         "Password reset successfully. You can now log in with your new password.",
     });
   } catch (error) {
-    console.error("Reset password error:", error.message);
+    console.error(
+      "Reset password error:",
+      error.message
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error",
     });
   }
