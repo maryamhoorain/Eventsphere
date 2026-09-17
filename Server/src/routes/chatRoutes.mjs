@@ -35,7 +35,7 @@ router.get(
 router.post(
   "/conversations",
   authMiddleware,
-  authorizeRoles("admin","organizer", "exhibitor"),
+  authorizeRoles("admin", "organizer", "exhibitor", "attendee"),
   createConversation
 );
 
@@ -48,7 +48,7 @@ router.post(
 router.get(
   "/conversations",
   authMiddleware,
-  authorizeRoles("admin","organizer", "exhibitor"),
+  authorizeRoles("admin", "organizer", "exhibitor", "attendee"),
   getMyConversations
 );
 
@@ -61,21 +61,21 @@ router.get(
 router.get(
   "/conversations/:conversationId/messages",
   authMiddleware,
-  authorizeRoles("admin", "organizer", "exhibitor"),
+  authorizeRoles("admin", "organizer", "exhibitor", "attendee"),
   getConversationMessages
 );
 
 router.post(
   "/conversations/:conversationId/messages",
   authMiddleware,
-  authorizeRoles("admin","organizer", "exhibitor"),
+  authorizeRoles("admin", "organizer", "exhibitor", "attendee"),
   sendTextMessage
 );
 
 router.post(
     "/conversations/:conversationId/images",
     authMiddleware,
-    authorizeRoles("admin","organizer", "exhibitor"),
+    authorizeRoles("admin", "organizer", "exhibitor", "attendee"),
     chatImageUpload.single("image"),
     sendImageMessage
 );
@@ -83,7 +83,7 @@ router.post(
 router.post(
     "/conversations/:conversationId/audio",
     authMiddleware,
-    authorizeRoles("admin", "exhibitor"),
+    authorizeRoles("admin", "organizer", "exhibitor", "attendee"),
     chatAudioUpload.single("audio"),
     sendAudioMessage
 );
@@ -91,14 +91,14 @@ router.post(
 router.put(
   "/conversations/:conversationId/messages/:messageId",
   authMiddleware,
-  authorizeRoles("admin","organizer", "exhibitor"),
+  authorizeRoles("admin", "organizer", "exhibitor", "attendee"),
   editMessage
 );
 
 router.delete(
   "/conversations/:conversationId/messages/:messageId",
   authMiddleware,
-  authorizeRoles("admin","organizer", "exhibitor"),
+  authorizeRoles("admin", "organizer", "exhibitor", "attendee"),
   deleteMessage
 );
 

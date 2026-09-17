@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { endpoints } from '../../api/client';
 import { useSession } from '../../store/session';
 
-const REPORT_TYPES = [
+const EVENT_REPORT_TYPES = [
   ['event_overview', 'Event overview'],
   ['registration', 'Registrations'],
   ['exhibitor', 'Exhibitors'],
@@ -111,7 +111,7 @@ export default function Reports() {
       <form className="card" style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap', padding: 18 }} onSubmit={generate}>
         <label style={{ display: 'grid', gap: 6, flex: 1, minWidth: 220 }}>Report type
           <select className="input-light" value={reportType} onChange={(e) => setReportType(e.target.value)}>
-            {REPORT_TYPES.concat(user.role === 'exhibitor' ? PERSONAL_REPORT_TYPES : []).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            {(user.role === 'exhibitor' ? PERSONAL_REPORT_TYPES : EVENT_REPORT_TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
         <label style={{ display: 'grid', gap: 6, minWidth: 140 }}>Format

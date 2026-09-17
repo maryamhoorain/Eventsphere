@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import { ImagePlus, LoaderCircle, MessageCircle, Mic, Send, Smile, UserPlus, X } from 'lucide-react';
+import { Bot, ImagePlus, LoaderCircle, MessageCircle, Mic, Send, Smile, UserPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import EmojiPicker from 'emoji-picker-react';
 import { endpoints, getToken } from '../../api/client';
@@ -15,9 +15,93 @@ function emojiFromPicker(data) {
   return data.unified.split('-').map((codePoint) => String.fromCodePoint(parseInt(codePoint, 16))).join('');
 }
 
+function renderAssistantMessage(text) {
+  const rawText = String(text || '').trim();
+  const detailMatches = [...rawText.matchAll(/(?:\*{2,4})([^*]+?)(?:\*{2,4})\s*([\s\S]*?)(?=(?:\*{2,4})[^*]+?(?:\*{2,4})|$)/g)]
+    .map((match) => ({ label: match[1].trim(), value: match[2].replace(/\s+/g, ' ').trim() || 'Not specified' }));
+  if (detailMatches.length >= 2) {
+    return (
+      <div className="assistant-answer">
+        <div className="assistant-answer__title">{detailMatches[0].value}</div>
+        {detailMatches.slice(1).map((item) => (
+          <div className="assistant-answer__row" key={item.label}>
+            <strong>{item.label}</strong>
+            <span>{item.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const pipeCells = [...rawText.matchAll(/\|([^|]*)\|/g)].map((match) => match[1].trim());
+  const separatorIndex = pipeCells.findIndex((cell) => /^[-:\s]+$/.test(cell) && cell.includes('-'));
+  if (separatorIndex > 0) {
+    const columnCount = separatorIndex;
+    const dataCells = pipeCells.slice(separatorIndex + columnCount);
+    const rows = [];
+    for (let index = 0; index + columnCount <= dataCells.length; index += columnCount) {
+      rows.push(dataCells.slice(index, index + columnCount));
+    }
+    const lastPipe = rawText.lastIndexOf('|');
+    const followUp = rawText.slice(lastPipe + 1).replace(/\*+/g, '').trim();
+    return (
+      <div className="assistant-answer">
+        <div className="assistant-answer__title">Registration summary</div>
+        {rows.map((row) => (
+          <div className="assistant-answer__row" key={row[0]}>
+            <strong>{row[0]}</strong>
+            <span>{row.slice(1).filter(Boolean).join(' · ')}</span>
+          </div>
+        ))}
+        {followUp && <p>{followUp}</p>}
+      </div>
+    );
+  }
+
+  const lines = rawText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const isTableRow = (line) => line.startsWith('|') && line.endsWith('|');
+  const isSeparator = (line) => /^\|?[\s|:-]+\|?$/.test(line);
+  const tableLines = lines.filter(isTableRow);
+
+  if (tableLines.length >= 2) {
+    const rows = tableLines
+      .filter((line) => !isSeparator(line))
+      .map((line) => line.split('|').slice(1, -1).map((cell) => cell.trim()));
+    const [header, ...body] = rows;
+    return (
+      <div className="assistant-answer">
+        {header && <div className="assistant-answer__title">{header[1] || header[0]}</div>}
+        {body.map((row, index) => (
+          <div className="assistant-answer__row" key={`row-${index}`}>
+            <strong>{row[0]}</strong>
+            <span>{row.slice(1).filter(Boolean).join(' · ')}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="assistant-answer">
+      {lines.map((line, index) => {
+        const cleaned = line.replace(/^#+\s*/, '').replace(/^[-*]\s*/, '');
+        const separator = cleaned.indexOf('|');
+        if (separator > 0) {
+          return <div className="assistant-answer__row" key={`line-${index}`}><strong>{cleaned.slice(0, separator).replace(/[*:`]/g, '').trim()}</strong><span>{cleaned.slice(separator + 1).replace(/[*`]/g, '').trim()}</span></div>;
+        }
+        return <p key={`line-${index}`}>{cleaned.replace(/\*\*/g, '')}</p>;
+      })}
+    </div>
+  );
+}
+
 export function AssistantWidget() {
   const user = useSession((s) => s.user);
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState('ai');
+  const [aiMessages, setAiMessages] = useState([]);
+  const [aiValue, setAiValue] = useState('');
+  const [aiSending, setAiSending] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -39,8 +123,7 @@ export function AssistantWidget() {
   useEffect(() => {
     if (!open || !canChat) return undefined;
     let active = true;
-    setLoading(true);
-    Promise.all([endpoints.chat.conversations(), endpoints.chat.contacts()])
+    Promise.resolve().then(() => setLoading(true)).then(() => Promise.all([endpoints.chat.conversations(), endpoints.chat.contacts()]))
       .then(([conversationResponse, contactsResponse]) => {
         if (!active) return;
         setConversations(conversationResponse?.data || []);
@@ -54,8 +137,7 @@ export function AssistantWidget() {
   useEffect(() => {
     if (!open || !selectedId) return undefined;
     let active = true;
-    setMessagesLoading(true);
-    endpoints.chat.messages(selectedId)
+    Promise.resolve().then(() => setMessagesLoading(true)).then(() => endpoints.chat.messages(selectedId))
       .then((response) => active && setMessages(response?.messages || []))
       .catch((error) => toast.error(error.message))
       .finally(() => active && setMessagesLoading(false));
@@ -109,18 +191,55 @@ export function AssistantWidget() {
     setSending(false);
   }
 
+  async function submitAssistant(event) {
+    event.preventDefault();
+    const question = aiValue.trim();
+    if (!question || aiSending) return;
+    setAiValue('');
+    setAiMessages((items) => [...items, { role: 'user', text: question }]);
+    setAiSending(true);
+    try {
+      const transcript = aiMessages.slice(-6).map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.text}`).join('\n');
+      const prompt = transcript ? `Conversation so far:\n${transcript}\nUser follow-up: ${question}` : question;
+      const response = await endpoints.ai.chat(prompt);
+      const answer = response?.data?.answer;
+      if (!answer) throw new Error('The assistant returned an empty response.');
+      setAiMessages((items) => [...items, { role: 'assistant', text: answer }]);
+    } catch (error) {
+      toast.error(error.message || 'Unable to contact the assistant.');
+    } finally {
+      setAiSending(false);
+    }
+  }
+
   if (!canChat) return null;
 
   return (
     <>
-      <button type="button" className="assistant-fab" onClick={() => setOpen(true)} aria-label="Open conversations"><MessageCircle size={24} /></button>
+      <button type="button" className="assistant-fab" onClick={() => setOpen(true)} aria-label="Open assistant"><Bot size={24} /></button>
       {open && (
-        <div className="assistant-modal assistant-chat-modal" role="dialog" aria-modal="true" aria-label="Conversations">
+        <div className="assistant-modal assistant-chat-modal" role="dialog" aria-modal="true" aria-label="EventSphere assistant">
           <div className="assistant-modal__header">
-            <span><MessageCircle size={18} /> Conversations</span>
+            <span><Bot size={18} /> EventSphere assistant</span>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close chat"><X size={18} /></button>
           </div>
-          {!selected ? (
+          <div style={{ display: 'flex', gap: 8, padding: '8px 12px', borderBottom: '1px solid rgba(148,163,184,.18)' }}>
+            <button type="button" className="btn btn-sm" onClick={() => setMode('ai')}><Bot size={14} /> Assistant</button>
+            <button type="button" className="btn btn-sm" onClick={() => setMode('chat')}><MessageCircle size={14} /> Conversations</button>
+          </div>
+          {mode === 'ai' ? (
+            <>
+              <div className="assistant-modal__messages">
+                {!aiMessages.length && <div className="assistant-modal__empty"><Bot size={30} /><span>Ask about events, sessions, registrations, booths, or your dashboard.</span></div>}
+                {aiMessages.map((message, index) => <div className={`assistant-modal__message ${message.role === 'user' ? 'user' : 'assistant'}`} key={`${message.role}-${index}`}><span>{message.role === 'user' ? message.text : renderAssistantMessage(message.text)}</span></div>)}
+                {aiSending && <LoaderCircle className="spin" />}
+              </div>
+              <form className="assistant-modal__composer" onSubmit={submitAssistant}>
+                <input value={aiValue} onChange={(event) => setAiValue(event.target.value)} placeholder="Ask the assistant…" aria-label="Assistant question" />
+                <button className="btn btn-primary btn-sm" type="submit" disabled={aiSending || !aiValue.trim()}><Send size={15} /></button>
+              </form>
+            </>
+          ) : !selected ? (
             <div className="assistant-chat-list">
               <button type="button" className="assistant-new-chat" onClick={() => setShowContacts((current) => !current)}><UserPlus size={16} /> New conversation</button>
               {showContacts && <div className="assistant-contacts">{contacts.map((contact) => <button type="button" key={contact._id} onClick={() => startConversation(contact)}><span className="chat-avatar">{contact.name?.[0] || '?'}</span><span><strong>{contact.name}</strong><small>{contact.role}</small></span></button>)}</div>}

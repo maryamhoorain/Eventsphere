@@ -20,6 +20,12 @@ const boothVisitSchema = new mongoose.Schema(
             required: true
         },
 
+        ticketCode: {
+            type: String,
+            required: true,
+            trim: true
+        },
+
         visitedAt: {
             type: Date,
             default: Date.now

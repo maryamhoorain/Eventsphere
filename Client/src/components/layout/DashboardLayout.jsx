@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3, Bell, ClipboardList, Footprints, Globe, Heart,
-  FileText, LayoutDashboard, LogOut, Map, Menu, Mic2, ScanLine, Settings, Star, Ticket, Users,
+  FileText, LayoutDashboard, LogOut, Map, Menu, Mic2, Settings, Star, Ticket, Users,
 } from 'lucide-react';
 import { useSession } from '../../store/session';
 import { endpoints } from '../../api/client';
@@ -19,7 +19,6 @@ const NAV = [
     { name: 'Users', to: '/dashboard/users', icon: Users, roles: ['admin'] },
     { name: 'Applications', to: '/dashboard/applications', icon: ClipboardList, roles: ['admin'] },
     { name: 'Registrations', to: '/dashboard/registrations', icon: Ticket, roles: ['admin', 'organizer'] },
-    { name: 'Check-in', to: '/dashboard/check-in', icon: ScanLine, roles: ['admin', 'organizer'] },
     { name: 'Sessions', to: '/dashboard/sessions', icon: Mic2, roles: ['admin', 'organizer', 'exhibitor'] },
     { name: 'Booths', to: '/dashboard/booths', icon: Map, roles: ['admin', 'organizer', 'exhibitor'] },
     { name: 'Booth requests', to: '/dashboard/booth-requests', icon: ClipboardList, roles: ['admin'] },

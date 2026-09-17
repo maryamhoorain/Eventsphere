@@ -20,7 +20,6 @@ import DashSessions from './pages/dashboard/Sessions';
 import DashBoothVisits from './pages/dashboard/BoothVisits';
 import DashApplications from './pages/dashboard/Applications';
 import DashRegistrations from './pages/dashboard/Registrations';
-import DashCheckIn from './pages/dashboard/CheckIn';
 import DashBooths from './pages/dashboard/Booths';
 import DashBoothRequests from './pages/dashboard/BoothRequests';
 import DashFavorites from './pages/dashboard/Favorites';
@@ -77,7 +76,6 @@ export default function App() {
             <Route path="booth-visits" element={<DashBoothVisits />} />
             <Route path="applications" element={<DashApplications />} />
             <Route path="registrations" element={<DashRegistrations />} />
-            <Route path="check-in" element={<DashCheckIn />} />
             <Route path="booths" element={<DashBooths />} />
             <Route path="booth-requests" element={<DashBoothRequests />} />
             <Route path="favorites" element={<DashFavorites />} />
